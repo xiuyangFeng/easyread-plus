@@ -3,6 +3,7 @@
 一篇论文一个目录，文件按“谁写”分开，这是互不覆盖的根本保证：
   paper.json       翻译方（对话里的 agent 或后台翻译任务）写：原文、译文、术语、参考文献
   discussion.json  翻译方写：解释、问答、回复、原文核对提示
+  gist.json        翻译方写：段落主旨、论文脉络和核心论点（读者改过的条目带 by=me，重新生成时保留）
   reader.json      只由页面经 /api/.../ops 写：用户改的译文、笔记、划线、论文笔记、进度
   item.json        只由页面经 /api/items 写：标签、阅读状态、星标、打开时间
 """
@@ -100,6 +101,10 @@ def empty_discussion() -> dict:
     return {"schema": SCHEMA, "entries": []}
 
 
+def empty_gist() -> dict:
+    return {"schema": 1, "blocks": {}, "sections": {}, "story": "", "claims": [], "at": "", "by": ""}
+
+
 # ---------- reader.json 的操作合并 ----------
 # 每个操作幂等、带时间戳；同一对象以较新的为准。页面断网时操作留在浏览器，恢复后重发不会重复或倒退。
 
@@ -163,7 +168,7 @@ def apply_ops(reader: dict, ops: list[dict]) -> list[str]:
 class Workspace:
     """一篇论文的目录。"""
 
-    PARTS = ("paper", "discussion", "reader", "layout")
+    PARTS = ("paper", "discussion", "reader", "layout", "gist")
 
     def __init__(self, root: Path):
         self.root = Path(root).resolve()
@@ -179,7 +184,8 @@ class Workspace:
     journal_path = property(lambda s: s.root / "history" / "reader.log.jsonl")
 
     def load(self, name: str):
-        defaults = {"reader": empty_reader(), "discussion": empty_discussion(), "layout": {}, "item": {}, "job": {}, "chat": {"messages": []}}
+        defaults = {"reader": empty_reader(), "discussion": empty_discussion(), "layout": {}, "item": {}, "job": {}, "chat": {"messages": []},
+                    "gist": empty_gist()}
         return read_json(self.root / f"{name}.json", defaults.get(name))
 
     def versions(self) -> dict:

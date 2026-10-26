@@ -29,6 +29,7 @@ DEFAULTS = {
     "auto_translate": True,      # 导入后自动开始翻译
     "batch_pages": 2,            # 每次交给模型的页数
     "concurrency": 1,            # 同时翻译几批
+    "gist_auto": False,          # 翻译完自动生成段落主旨与脉络（会再花一些 token）
     "claude": {"command": "claude", "model": "", "extra_args": [], "timeout": 1200},
     "codex": {"command": "codex", "model": "", "extra_args": [], "timeout": 1200},
     "openai": {"preset": "", "base_url": "", "api_key": "", "model": "", "vision": False, "timeout": 600},

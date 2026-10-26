@@ -11,6 +11,7 @@
       autoscroll: () => PR.toggleAutoscroll && PR.toggleAutoscroll(),
       tts: () => PR.ttsToggle && PR.ttsToggle(),
       pages: () => PR.togglePages(), notes: () => PR.toggleNotesPanel(), figs: () => PR.toggleFigs && PR.toggleFigs(),
+      map: () => PR.toggleMap && PR.toggleMap(), skim: () => PR.toggleSkim && PR.toggleSkim(),
       chat: () => { const b = (PR.currentBlock && PR.currentBlock()) || PR.readingBlock(); PR.blockById[b] ? PR.chatAsk({ anchor: b }) : PR.toggleChat(); },
       pagePrev: () => PR.pageStep(-1), pageNext: () => PR.pageStep(1),
     }[id];

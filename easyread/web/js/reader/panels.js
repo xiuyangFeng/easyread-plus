@@ -5,7 +5,7 @@
   const body = document.body;
 
   /* ---------- 偏好 ---------- */
-  const DEF = { fs: 18, measure: 35, lh: 1.9, font: "serif", theme: "auto", mode: "zh", margin: true };
+  const DEF = { fs: 18, measure: 35, lh: 1.9, font: "serif", theme: "auto", mode: "zh", margin: true, gist: true };
   PR.prefs = Object.assign({}, DEF, PR.ls.get("easyread-prefs", {}));
   PR.applyPrefs = function () {
     const p = PR.prefs, root = document.documentElement;
@@ -170,6 +170,7 @@
     PR.$("#bar .save-state").before(pill);
   };
   PR.$('[data-act="drawer"]').innerHTML = PR.icon("menu");
+  PR.$('[data-act="map"]').innerHTML = PR.icon("map", "sm") + "<span>脉络</span>";
   PR.$('[data-act="figs"]').innerHTML = PR.icon("image", "sm") + "<span>看图</span>";
   PR.$('[data-act="pages"]').innerHTML = PR.icon("page", "sm") + "<span>原页</span>";
   PR.$('[data-act="pages"]').addEventListener("mouseenter", () => PR.preloadPage && PR.preloadPage());  // 鼠标移过去就开始加载
@@ -180,6 +181,10 @@
     const set = (sel, on) => { const el = PR.$(sel); if (el) el.style.display = on ? "" : "none"; };
     set('[data-act="pages"]', PR.feature("pages"));
     set('[data-act="figs"]', PR.feature("figs"));
+    set('[data-act="map"]', PR.feature("gist"));
+    if (!PR.feature("gist") && PR.side === "map") PR.openSide(null);
+    if (!PR.feature("gist") && PR.skimOn && PR.skimOn()) PR.toggleSkim(false);
+    if (PR.renderGists) PR.renderGists();
     if (!PR.feature("figs") && PR.side === "figs") PR.openSide(null);
     set('[data-act="chat"]', PR.feature("chat") && PR.chatView());
     if (!PR.feature("pages") && PR.side === "pages") PR.openSide(null);
@@ -195,6 +200,7 @@
     if (act === "drawer") PR.toggleDrawer();
     if (act === "pages") PR.togglePages();
     if (act === "figs") PR.toggleFigs();
+    if (act === "map") PR.toggleMap();
     if (act === "notes") PR.toggleNotesPanel();
     if (act === "chat") PR.toggleChat();
     if (act === "settings") { PR.renderSettings(); PR.$("#settings").classList.toggle("open"); }

@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="/web/css/reader.css">
 <link rel="stylesheet" href="/web/css/reader-panels.css">
 <link rel="stylesheet" href="/web/css/reader-chat.css">
+<link rel="stylesheet" href="/web/css/reader-gist.css">
 <link rel="stylesheet" href="/web/css/settings.css">
 <script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}</script>
 </head>
@@ -29,6 +30,7 @@
     <button data-mode="zh" title="只看译文">译文</button>
     <button data-mode="bi" title="译文下附原文（B）">对照</button>
   </div>
+  <button class="btn" data-act="map" title="论文脉络：段落主旨、论证结构、核心论点（G）"></button>
   <button class="btn" data-act="figs" title="随文看图：读到“图 N”时在右侧显示（F）"></button>
   <button class="btn" data-act="pages" title="原文页，跟随阅读位置（O）"></button>
   <button class="btn" data-act="notes" title="笔记面板（M）"></button>
@@ -68,6 +70,7 @@
   <div class="pv-scroll"><div class="pv-page"><img alt=""><div class="pv-hl"></div></div></div>
 </section>
 
+<section id="mappanel" class="side-panel" aria-label="论文脉络"></section>
 <section id="figpanel" class="side-panel" aria-label="随文看图"></section>
 <section id="notespanel" class="side-panel" aria-label="笔记"></section>
 <section id="chatpanel" class="side-panel" aria-label="问 AI"></section>
@@ -100,6 +103,8 @@
 <script src="/web/js/reader/panels.js"></script>
 <script src="/web/js/reader/pageview.js"></script>
 <script src="/web/js/reader/figpanel.js"></script>
+<script src="/web/js/reader/gist.js"></script>
+<script src="/web/js/reader/mappanel.js"></script>
 <script src="/web/js/reader/notespanel.js"></script>
 <script src="/web/js/reader/chat.js"></script>
 <script src="/web/js/reader/jumpback.js"></script>

@@ -85,7 +85,7 @@ def build(
             images[rel] = f"{assets.name}/{dst.name}"
         else:
             images[rel] = _data_uri(src, "image/webp")
-    data = {n: ws.load(n) for n in ("discussion", "reader", "layout")}
+    data = {n: ws.load(n) for n in ("discussion", "reader", "layout", "gist")}
     data["item"] = item
     data.update({"paper": paper, "images": images}, **(extra or {}))
     payload = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")

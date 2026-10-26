@@ -1,12 +1,13 @@
 """后台任务：导入后的渲染与整篇翻译（一条队列，状态落在每篇的 job.json，重启后接着做），
-以及“让模型回答我的问题 / 重译这段”这类小任务（另一条队列，不用等整篇翻译）。"""
+“让模型回答我的问题 / 重译这段”这类小任务（另一条队列，不用等整篇翻译），
+以及生成段落主旨和论文脉络（每篇单独一个线程，要读十几批，不能堵住小任务）。"""
 from __future__ import annotations
 
 import queue
 import threading
 import time
 
-from . import config, pdfwork, translate
+from . import config, gist, pdfwork, translate
 from .engines import Cancelled, EngineError
 from .library import Library
 from .log import log
@@ -110,6 +111,8 @@ class Jobs:
                         message=(f"{len(pages) - len(failed)} 页译好了，" if len(failed) < len(pages) else "") + f"{len(failed)} 页没译成功")
         else:
             self._write(ws, state="done", failed={}, error="", message=f"翻译完成（{len(pages)} 页，用时约 {minutes} 分钟）")
+        if cfg.get("gist_auto"):  # 设置里开了“翻译完自动生成主旨与脉络”
+            self.submit_gist(ws.id, "missing")
 
     # ---------- 小任务 ----------
     def submit_small(self, kind: str, pid: str, **kw) -> dict:
@@ -119,6 +122,52 @@ class Jobs:
             self.recent = ([job] + self.recent)[:50]
         self.small.put(job)
         return job
+
+    # ---------- 段落主旨与脉络 ----------
+    def submit_gist(self, pid: str, mode: str = "missing", block: str | None = None) -> dict:
+        """同一篇同时只跑一个；已在跑就返回那个。"""
+        with self.lock:
+            running = next((j for j in self.recent if j["pid"] == pid and j["kind"] == "gist" and j["state"] in ("queued", "running")), None)
+            if running:
+                return dict(running)
+            job = {"id": f"j{int(time.time() * 1000)}", "kind": "gist", "pid": pid, "mode": mode, "block": block,
+                   "state": "queued", "message": "排队中", "done": 0, "total": 0, "at": now_iso()}
+            self.recent = ([job] + self.recent)[:50]
+            cancel = self.cancels["gist:" + pid] = threading.Event()
+        threading.Thread(target=self._run_gist, args=(job, cancel), daemon=True).start()
+        return dict(job)
+
+    def cancel_gist(self, pid: str) -> None:
+        ev = self.cancels.get("gist:" + pid)
+        if ev:
+            ev.set()
+
+    def _run_gist(self, job: dict, cancel: threading.Event):
+        ws = self.lib.ws(job["pid"])
+        try:
+            if not ws:
+                raise KeyError(job["pid"])
+            cfg = config.load()
+            if cfg.get("engine") == "none":
+                raise EngineError("还没有设置模型")
+
+            def report(done, total, message):
+                if cancel.is_set():
+                    raise Cancelled()
+                job.update(state="running", done=done, total=total, message=message)
+            job.update(state="running", message="准备中")
+            res = gist.run(ws, cfg, job["mode"], cancel, report, block=job.get("block"))
+            msg = "完成" if job["mode"] == "structure" else f"写好 {res['blocks']} 段主旨" if res["blocks"] else "已是最新"
+            if res["failed"]:
+                msg += f"，{res['failed']} 批没成功（可以再点一次补上）"
+            job.update(state="done", message=msg)
+        except Cancelled:
+            job.update(state="error", message="已停止，写好的部分保留")
+        except Exception as e:  # noqa: BLE001
+            job.update(state="error", message=str(e)[:500])
+            log.exception("主旨任务出错 %s", job.get("pid"))
+        finally:
+            self.cancels.pop("gist:" + job["pid"], None)
 
     def small_status(self, pid: str | None = None) -> list[dict]:
         with self.lock:

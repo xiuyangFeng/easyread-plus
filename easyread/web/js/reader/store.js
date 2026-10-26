@@ -5,7 +5,7 @@
    - 离线版（导出的单文件）没有服务，队列本身就是存储，可导出后并回。 */
 (function (PR) {
   "use strict";
-  const S = (PR.state = { paper: null, discussion: { entries: [] }, reader: {}, layout: {}, item: {}, job: {}, images: {}, versions: {}, engine: "none" });
+  const S = (PR.state = { paper: null, discussion: { entries: [] }, reader: {}, layout: {}, item: {}, job: {}, gist: {}, images: {}, versions: {}, engine: "none" });
   let mode = "server";
   let serverReader = null;
   let outbox = [];
@@ -116,7 +116,7 @@
     if (embedded) {
       const d = JSON.parse(embedded.textContent);
       mode = "static";
-      Object.assign(S, { paper: d.paper, discussion: d.discussion || { entries: [] }, layout: d.layout || {}, images: d.images || {}, item: d.item || {}, chat: d.chat || null, demo: d.demo || null, pdf: d.pdf || null });
+      Object.assign(S, { paper: d.paper, discussion: d.discussion || { entries: [] }, layout: d.layout || {}, gist: d.gist || {}, images: d.images || {}, item: d.item || {}, chat: d.chat || null, demo: d.demo || null, pdf: d.pdf || null });
       serverReader = d.reader || {};
       PR.pid = PR.pid || (S.paper.meta.source_sha256 || "paper").slice(0, 12);
     } else {
@@ -125,7 +125,7 @@
       if (!r.ok) throw new Error(r.status === 404 ? "文献库里没有这篇论文" : "读取数据失败：" + r.status);
       const d = await r.json();
       PR.token = d.token;
-      Object.assign(S, { paper: d.paper, discussion: d.discussion, layout: d.layout || {}, item: d.item || {}, job: d.job || {}, versions: d.versions, engine: d.engine });
+      Object.assign(S, { paper: d.paper, discussion: d.discussion, layout: d.layout || {}, item: d.item || {}, job: d.job || {}, gist: d.gist || {}, versions: d.versions, engine: d.engine });
       serverReader = d.reader || {};
     }
     const ov = (S.item || {}).meta_override || {};
@@ -154,7 +154,7 @@
       return;
     }
     const changed = [];
-    for (const name of ["paper", "discussion", "layout", "reader", "job"]) if (v[name] && v[name] !== S.versions[name]) changed.push(name);
+    for (const name of ["paper", "discussion", "layout", "reader", "job", "gist"]) if (v[name] && v[name] !== S.versions[name]) changed.push(name);
     if (!changed.length) return;
     for (const name of changed) {
       if (name === "reader" && (flushing || outbox.length)) continue; // 自己正在写，等写完

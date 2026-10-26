@@ -144,7 +144,7 @@
   function collect(state) {
     if (state.tab !== "engine") {  // 不在这一页时，用切页时存下的值
       const c = state.cfg, o = c.openai;
-      return { engine: c.engine, batch_pages: c.batch_pages, concurrency: c.concurrency, auto_translate: c.auto_translate,
+      return { engine: c.engine, batch_pages: c.batch_pages, concurrency: c.concurrency, auto_translate: c.auto_translate, gist_auto: !!c.gist_auto,
         claude: { model: c.claude.model, command: c.claude.command }, codex: { model: c.codex.model, command: c.codex.command },
         openai: { preset: o.preset, base_url: o.base_url, model: o.model, api_key: o.api_key, vision: o.vision } };
     }
@@ -174,6 +174,7 @@
         '<label class="field"><span>每次交给模型的页数</span><select class="input" data-k="batch_pages">' + PR.opt([[1, "1 页（最稳）"], [2, "2 页（推荐）"], [3, "3 页"], [4, "4 页"]], s.cfg.batch_pages) + "</select></label>" +
         '<label class="field"><span>同时翻译几批</span><select class="input" data-k="concurrency">' + PR.opt([[1, "1（本机 CLI 推荐）"], [2, "2"], [3, "3（API 推荐）"], [4, "4"], [6, "6（最快）"]], s.cfg.concurrency) + "</select></label></div>" +
         '<label class="check" style="margin-top:0"><input type="checkbox" data-k="auto_translate"' + (s.cfg.auto_translate ? " checked" : "") + ">导入后自动开始翻译</label>" +
+        '<label class="check" style="margin-top:0" title="用同一个模型按章节读一遍译文，给每段写一句主旨，再提炼故事线和核心论点；也可以在阅读页“脉络”面板里手动生成"><input type="checkbox" data-k="gist_auto"' + (s.cfg.gist_auto ? " checked" : "") + ">翻译完自动生成段落主旨与脉络（会再花一些 token）</label>" +
         '<p class="hint" style="margin-top:12px">文献库位置：' + PR.esc(s.cfg.library_dir) + "</p>";
     },
     collect,

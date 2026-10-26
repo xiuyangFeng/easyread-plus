@@ -6,7 +6,7 @@
   let pvPage = 1, pvBlock = null;
   const pages = () => (S.paper.meta || {}).pages || [];
 
-  /* 右侧面板开关：pages | notes | chat | figs | null */
+  /* 右侧面板开关：pages | notes | chat | figs | map | null */
   /* 面板先滑出来（只动面板，不卡），滑完再让正文让位、重排一次。
      长论文有几万个节点，正文宽度一变就要整页重排（两三百毫秒），放在点击的当下会让人觉得按钮反应慢。 */
   PR.side = null;
@@ -17,10 +17,12 @@
     body.classList.toggle("np-open", name === "notes");
     body.classList.toggle("ch-open", name === "chat");
     body.classList.toggle("fp-open", name === "figs");
+    body.classList.toggle("mp-open", name === "map");
     PR.$('[data-act="chat"]').classList.toggle("on", name === "chat");
     PR.$('[data-act="pages"]').classList.toggle("on", name === "pages");
     PR.$('[data-act="notes"]').classList.toggle("on", name === "notes");
     PR.$('[data-act="figs"]').classList.toggle("on", name === "figs");
+    PR.$('[data-act="map"]').classList.toggle("on", name === "map");
     PR.emit("side", name);
     clearTimeout(sideT);
     if (name) { const t = PR.$("#toast"); if (t) t.classList.remove("open"); }  // 提示条别挡住面板底部的输入框
@@ -31,6 +33,7 @@
       const before = node ? node.getBoundingClientRect().top : 0;
       body.classList.toggle("side-open", !!PR.side);
       PR.fitWide(); PR.renderMargin();
+      PR.emit("side-layout");  // 正文让位完了：左边留白变了，主旨要重新排
       if (node) window.scrollBy(0, node.getBoundingClientRect().top - before);  // 重排后还停在刚才读的地方
     }), 300);
   };

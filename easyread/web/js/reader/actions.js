@@ -29,6 +29,8 @@
     if (keys.length && PR.feature("edit")) list.push({ k: "edit", label: "改译文", icon: "edit", fn: () => { const zh = PR.$("#b-" + CSS.escape(id) + " .zh[data-key]"); zh && PR.editZh(zh); } });
     if (b.page && PR.feature("pages")) list.push({ k: "page", label: "原页 p." + b.page, icon: "page", fn: () => PR.openPage(b.page, id) });
     // 重译花 token、容易误点：默认关，开了也只放在“⋯”菜单里
+    const ga = PR.gistAction && PR.gistAction(id);
+    if (ga) list.push(ga);
     if (keys.length && PR.canAsk() && PR.feature("retranslate")) list.push({ k: "redo", label: "让模型重译这段…", icon: "redo", menuOnly: true, fn: () => retranslate(id) });
     list.forEach((a) => { a.kbd = PR.keyOf ? PR.keyOf(a.k) : ""; });
     return list;

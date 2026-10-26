@@ -201,7 +201,7 @@ class Handler(BaseHTTPRequestHandler):
                 _warm(ws.root)
                 pdfwork.fill_figure_srcs(ws)  # 阅读页内联插图：第一次会裁图，之后是空操作
                 return self._json(200, {
-                    **{n: ws.load(n) for n in ("paper", "discussion", "reader", "layout", "item", "job")},
+                    **{n: ws.load(n) for n in ("paper", "discussion", "reader", "layout", "item", "job", "gist")},
                     "versions": ws.versions(), "token": app.token, "id": ws.id,
                     "engine": config.load().get("engine")})
             if action == "versions":
@@ -219,7 +219,7 @@ class Handler(BaseHTTPRequestHandler):
                 from .build import build
                 out = build(ws)
                 return self._download(out.read_bytes(), out.name, "text/html; charset=utf-8")
-            if action == "part" and len(parts) > 5 and parts[5] in ("paper", "discussion", "reader", "layout", "job"):
+            if action == "part" and len(parts) > 5 and parts[5] in ("paper", "discussion", "reader", "layout", "job", "gist"):
                 return self._json(200, {"data": ws.load(parts[5]), "version": ws.versions()[parts[5]]})
         if path.startswith("/p/"):
             _, _, pid, rel = path.split("/", 3)
@@ -334,6 +334,20 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, app.jobs.submit_small("answer", ws.id, note=body["note"]))
             if action == "retranslate":
                 return self._json(200, app.jobs.submit_small("retranslate", ws.id, key=body["key"], hint=body.get("hint", "")))
+            if action == "gist":  # 生成段落主旨与脉络：{mode: missing|all|block|structure, block} 或 {cancel: true}
+                if body.get("cancel"):
+                    app.jobs.cancel_gist(ws.id)
+                    return self._json(200, {"ok": True})
+                mode = body.get("mode") or "missing"
+                if mode not in ("missing", "all", "block", "structure"):
+                    raise ValueError("mode 不对")
+                if mode == "block" and not body.get("block"):
+                    raise ValueError("缺少 block")
+                return self._json(200, app.jobs.submit_gist(ws.id, mode, body.get("block")))
+            if action == "gist-edit":  # 读者改一段主旨：{block, gist, role} 或 {block, revert: true}
+                from . import gist
+                entry = gist.edit(ws, str(body["block"]), body.get("gist"), body.get("role"), bool(body.get("revert")))
+                return self._json(200, {"entry": entry, "versions": ws.versions()})
             if action == "delete":
                 app.jobs.cancel(ws.id)
                 return self._json(200, {"trash": str(lib.trash(ws.id))})
