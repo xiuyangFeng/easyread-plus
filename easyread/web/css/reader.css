@@ -84,6 +84,17 @@ body.font-sans #paper { font-family: var(--sans-zh); letter-spacing: .01em; }
   font: .84em/1.66 var(--serif-en); color: var(--ink-2); letter-spacing: 0; text-align: left; hyphens: auto; font-variant-numeric: lining-nums;
 }
 body.mode-bi .en, .blk.show-en .en { display: block; }
+
+/* 只看原文：正文换成英文（有英文的段才换，没有的照旧显示译文）；标题、图注、论文题目也换成英文 */
+body.mode-en .zh:has(+ .en) { display: none; }
+body.mode-en .en { display: block; margin: 0; padding: 0; border: 0; font: 1em/1.72 var(--serif-en); color: var(--ink); text-align: justify; letter-spacing: .003em; }
+body.mode-en .blk-list .en { margin: 0 0 .3em; }
+body.mode-en .caption .en { font-size: 1em; color: var(--ink-2); text-align: left; }
+body.mode-en .blk-heading .zh:has(.en-title) > span:not(.num):not(.en-title):not(.stale-tag) { display: none; }
+body.mode-en .blk-heading .en-title { display: inline; font: inherit; font-family: var(--serif-en); font-style: normal; color: inherit; margin: 0; }
+body.mode-en .paper-head h1:has(+ .title-en) { display: none; }
+body.mode-en .paper-head .title-en { font: 600 1.55em/1.35 var(--serif-en); color: var(--ink); margin: 0 0 .8em; }
+body.mode-en .abstract .en { font-style: normal; }
 .en .katex { font-size: 1.04em; }
 
 /* 标题 */
@@ -240,9 +251,9 @@ textarea.editor { display: block; width: 100%; resize: none; overflow: hidden; b
   .blk.notes-open > .inline-notes { display: block; }
 }
 @media (min-width: 1240px) {
-  body.side-open #margin, body.pvl-open #margin, body.no-margin #margin { display: none; }
-  body.side-open .note-pin, body.pvl-open .note-pin, body.no-margin .note-pin { display: inline-block; }
-  body.side-open .blk.notes-open > .inline-notes, body.pvl-open .blk.notes-open > .inline-notes, body.no-margin .blk.notes-open > .inline-notes { display: block; }
+  body.side-open #margin, body.no-margin #margin { display: none; }
+  body.side-open .note-pin, body.no-margin .note-pin { display: inline-block; }
+  body.side-open .blk.notes-open > .inline-notes, body.no-margin .blk.notes-open > .inline-notes { display: block; }
 }
 @media (max-width: 760px) {
   :root { --gutter: 18px; }
@@ -287,7 +298,7 @@ body.print-notes .pdf-paper-note { display: block; }
   #paper { font-weight: 400 !important; line-height: 1.78 !important; }
   .paper-head { margin: 0 0 2.2em !important; }
   body:not(.print-notes) .paper-head .legend-line { display: none !important; }
-  body:not(.mode-bi) .en { display: none !important; }
+  body:not(.mode-bi):not(.mode-en) .en { display: none !important; }
   body.mode-bi .en { display: block !important; }
   .blk::before { display: none !important; }
   .blk-heading { break-inside: avoid; page-break-inside: avoid; break-after: avoid; page-break-after: avoid; }

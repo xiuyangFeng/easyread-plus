@@ -27,34 +27,20 @@ body.drawer-open #scrim { opacity: 1; pointer-events: auto; }
 .about .row { display: flex; gap: 6px; flex-wrap: wrap; }
 
 /* 右侧面板（原页 / 笔记，一次一个） */
-.side-panel { position: fixed; top: var(--bar-h); right: 0; bottom: 0; z-index: 40; width: var(--side-drag, var(--Rw, var(--side-w))); background: var(--surface); border-left: 1px solid var(--rule); transform: translateX(102%); transition: transform .3s ease; display: flex; flex-direction: column; }
+.side-panel { position: fixed; top: var(--bar-h); right: 0; bottom: 0; z-index: 40; width: var(--side-drag, var(--side-w)); background: var(--surface); border-left: 1px solid var(--rule); transform: translateX(102%); transition: transform .3s ease; display: flex; flex-direction: column; }
 body.pv-open #pageview, body.np-open #notespanel, body.fp-open #figpanel { transform: none; }
 @media (min-width: 1180px) {
   /* 右侧开着面板：边注收进正文（页边的小数字），版心在剩下的地方居中，放不下就变窄 */
-  body.side-open #stage { grid-template-columns: var(--gutter) minmax(0, var(--measure)) var(--gutter); width: min(calc(var(--measure) + 2 * var(--gutter)), calc(100vw - var(--Rnow) - 24px));
-    margin-right: calc(var(--Rnow) + 8px); margin-left: max(12px, calc((100vw - var(--Rnow) - var(--measure) - 2 * var(--gutter)) / 2)); }
-  /* 原文停在左边：版心在左右两栏之间居中，放不下就变窄 */
-  body.pvl-open #stage { grid-template-columns: var(--gutter) minmax(0, var(--measure)) var(--gutter);
-    width: min(calc(var(--measure) + 2 * var(--gutter)), calc(100vw - var(--Lw, 0px) - var(--Rnow) - 32px));
-    margin-right: calc(var(--Rnow) + 8px); margin-left: calc(var(--Lw, 0px) + max(12px, calc((100vw - var(--Lw, 0px) - var(--Rnow) - var(--measure) - 2 * var(--gutter)) / 2))); }
+  body.side-open #stage { grid-template-columns: var(--gutter) minmax(0, var(--measure)) var(--gutter); width: min(calc(var(--measure) + 2 * var(--gutter)), calc(100vw - var(--side-w) - 24px));
+    margin-right: calc(var(--side-w) + 8px); margin-left: max(12px, calc((100vw - var(--side-w) - var(--measure) - 2 * var(--gutter)) / 2)); }
 }
 /* 面板左边缘的拖动条：宽屏、开着面板时才有 */
-body { --Rnow: 0px; }
-body.side-open { --Rnow: var(--Rw, var(--side-w)); }
-#side-grip { display: none; position: fixed; top: var(--bar-h); bottom: 0; right: calc(var(--side-drag, var(--Rw, var(--side-w))) - 4px); width: 8px; z-index: 41; cursor: col-resize; touch-action: none; }
+#side-grip { display: none; position: fixed; top: var(--bar-h); bottom: 0; right: calc(var(--side-drag, var(--side-w)) - 4px); width: 8px; z-index: 41; cursor: col-resize; touch-action: none; }
 #side-grip:hover, body.resizing #side-grip { background: linear-gradient(90deg, transparent 3px, var(--accent) 3px, var(--accent) 5px, transparent 5px); }
 body.resizing { cursor: col-resize; user-select: none; }
 body.resizing .side-panel { transition: none; }
 body.resizing .side-panel iframe, body.resizing .side-panel img { pointer-events: none; }
 @media (min-width: 1180px) { body:is(.pv-open, .np-open, .ch-open, .fp-open, .mp-open) #side-grip { display: block; } }
-
-/* 原文停靠左侧（宽屏）：从左边滑出，右边缘可拖 */
-body.pvl #pageview { left: 0; right: auto; width: var(--left-drag, var(--Lw, min(36vw, 640px))); border-left: 0; border-right: 1px solid var(--rule); transform: translateX(-102%); }
-body.pvl.pvl-show #pageview { transform: none; }
-#left-grip { display: none; position: fixed; top: var(--bar-h); bottom: 0; left: calc(var(--left-drag, var(--Lw, 0px)) - 4px); width: 8px; z-index: 41; cursor: col-resize; touch-action: none; }
-#left-grip:hover, body.resizing #left-grip { background: linear-gradient(90deg, transparent 3px, var(--accent) 3px, var(--accent) 5px, transparent 5px); }
-@media (min-width: 1180px) { body.pvl.pvl-show #left-grip { display: block; } }
-@media (max-width: 1179px) { [data-pv="dock"] { display: none; } }
 
 /* 原文面板：原页 / 英文 */
 #pageview .pv-head { flex-wrap: wrap; height: auto; min-height: 46px; row-gap: 4px; padding-top: 6px; padding-bottom: 6px; }

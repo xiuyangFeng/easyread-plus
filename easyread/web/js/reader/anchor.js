@@ -95,6 +95,13 @@
     const range = sel.getRangeAt(0);
     const startEl = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
     const zh = startEl && startEl.closest("#paper .zh");
+    const en = !zh && startEl && startEl.closest("#paper .en, #paper .en-title, #paper .title-en");
+    if (en) {  // 英文原文（“原文”“对照”模式）：划线、笔记挂在译文上，这里只能问 AI、复制
+      const quote = sel.toString().trim();
+      if (!quote || !en.contains(range.endContainer)) return null;
+      const blk = en.closest(".blk, .paper-head");
+      return { en: true, anchor: blk && blk.dataset.id, quote, rect: range.getBoundingClientRect() };
+    }
     if (!zh || !zh.contains(range.endContainer) || zh.querySelector("textarea")) return null;
     const text = fullText(zh);
     const s = offsetOf(zh, range.startContainer, range.startOffset);
@@ -111,7 +118,10 @@
     if (!pendingSel) { bar.classList.remove("open"); return; }
     PR.hideBlockbar && PR.hideBlockbar();
     const pen = PR.prefs.pen === "underline" ? "underline" : "marker";
-    bar.innerHTML = '<span class="pens"><button data-pen="marker" class="' + (pen === "marker" ? "on" : "") + '" title="荧光笔：涂底色">' + PR.icon("marker", "sm") + "</button>" +
+    bar.innerHTML = pendingSel.en ?
+      (PR.canChat && PR.canChat() && PR.feature("chat") && pendingSel.anchor && pendingSel.anchor !== "head" ? '<button data-s="chat" title="把这句引用到问 AI">' + PR.icon("sparkle", "sm") + (PR.chatOpen && PR.chatOpen() ? "引用到对话" : "问 AI") + "</button>" : "") +
+      '<button data-s="copy" title="复制">' + PR.icon("copy", "sm") + "复制</button>" +
+      '<span class="hint" style="padding:0 8px 0 4px">划线、笔记请在译文上做</span>' : '<span class="pens"><button data-pen="marker" class="' + (pen === "marker" ? "on" : "") + '" title="荧光笔：涂底色">' + PR.icon("marker", "sm") + "</button>" +
       '<button data-pen="underline" class="' + (pen === "underline" ? "on" : "") + '" title="下划线">' + PR.icon("underline", "sm") + "</button></span>" +
       '<span class="dots pen-' + pen + '">' + PR.HL_COLORS.map(([c, name], i) =>
       '<button data-s="highlight" data-color="' + c + '" class="dot-' + c + '" title="' + name + (pen === "underline" ? "色下划线" : "色荧光笔") + (PR.keysOn ? "（" + (i + 1) + "）" : "") + '"></button>').join("") + "</span>" +
@@ -133,6 +143,7 @@
   PR.selectionAction = function (kind, color) {
     if (!pendingSel) return;
     const { anchor, key, quote, prefix, suffix } = pendingSel;
+    if (pendingSel.en && !["copy", "chat"].includes(kind)) return;  // 英文上不划线（快捷键 1–4、N、Q）
     selbar().classList.remove("open");
     getSelection().removeAllRanges();
     pendingSel = null;

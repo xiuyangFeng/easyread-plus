@@ -15,6 +15,7 @@
     PR.applyTheme(p.theme);
     body.classList.toggle("font-sans", p.font === "sans");
     body.classList.toggle("mode-bi", p.mode === "bi");
+    body.classList.toggle("mode-en", p.mode === "en");
     body.classList.toggle("no-margin", !p.margin);
     PR.$$("#bar .seg button").forEach((b) => b.classList.toggle("on", b.dataset.mode === p.mode));
     PR.ls.set("easyread-prefs", Object.assign(PR.ls.get("easyread-prefs", {}), p));
@@ -101,7 +102,7 @@
   PR.renderSettings = function () {
     PR.$("#settings").innerHTML =
       slider("fs", "字号", 13, 28, 1, " px") + slider("measure", "版心", 26, 50, 1, " 字") + slider("lh", "行距", 1.5, 2.4, 0.05, "") +
-      '<div class="row"><span>显示</span>' + segHtml("mode", [["zh", "译文"], ["bi", "对照"]]) + "</div>" +
+      '<div class="row"><span>显示</span>' + segHtml("mode", [["zh", "译文"], ["bi", "对照"], ["en", "原文"]]) + "</div>" +
       '<div class="row"><span>字体</span>' + segHtml("font", [["serif", "宋体"], ["sans", "黑体"]]) + "</div>" +
       '<div class="row"><span>主题</span>' + segHtml("theme", [["auto", "跟随"], ["light", "浅"], ["dark", "深"]]) + "</div>" +
       '<div class="row"><span>边注</span>' + segHtml("margin", [[true, "显示"], [false, "收起"]]) + "</div>" +

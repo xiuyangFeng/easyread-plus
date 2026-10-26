@@ -1,7 +1,6 @@
-/* 原文面板（PDF 原页 / 英文原文，随阅读位置同步）和右侧面板的开关、宽度。
-   - 右侧面板一次开一个：原文、笔记、问 AI、看图、脉络。
-   - 原文面板可以停靠到左边（宽屏）：左原文 · 中译文 · 右看图 / 脉络，三栏同时开时左右两栏按比例让出地方，中间至少留够读的宽度。
-   - 原文有两种看法：原页（PDF 页图，框出当前段）和英文（排好版的英文原文，高亮当前段，点了中文跳过去）。 */
+/* 右侧面板的开关、宽度，以及其中的原文面板（PDF 原页 / 英文原文，随阅读位置同步）。
+   - 右侧面板一次开一个：原文、笔记、问 AI、看图、脉络。版面始终是两栏：左边正文，右边面板。
+   - 原文面板有两种看法：原页（PDF 页图，框出当前段）和英文（排好版的英文原文，高亮当前段，点了正文跳过去）。 */
 (function (PR) {
   "use strict";
   const S = PR.state;
@@ -10,16 +9,13 @@
   let pvPage = 1, pvBlock = null;
   const pages = () => (S.paper.meta || {}).pages || [];
 
-  /* 记住“放大”“跟随”“看法”“停靠”（存在浏览器里，下次打开还是这个状态） */
+  /* 记住“放大”“跟随”“看法”（存在浏览器里，下次打开还是这个状态） */
   function savePv(patch) { PR.ls.set("easyread-pv", Object.assign(PR.ls.get("easyread-pv", {}), patch)); }
   const pvSaved = PR.ls.get("easyread-pv", {});
   let view = pvSaved.view === "en" ? "en" : "page";
-  let dock = pvSaved.dock === "left" ? "left" : "right";
-  let leftOpen = false, leftT = null;
 
-  const wideScreen = () => innerWidth >= 1180;  // 窄屏面板盖在正文上：不停靠左边、不调宽度
-  const leftDock = () => dock === "left" && wideScreen();
-  PR.pagesOpen = () => PR.side === "pages" || leftOpen;
+  const wideScreen = () => innerWidth >= 1180;  // 窄屏面板盖在正文上，不调宽度
+  PR.pagesOpen = () => PR.side === "pages";
   const pagesBtn = () => PR.$('[data-act="pages"]');
 
   /* 右侧面板开关：pages | notes | chat | figs | map | null */
@@ -35,7 +31,7 @@
     body.classList.toggle("fp-open", name === "figs");
     body.classList.toggle("mp-open", name === "map");
     PR.$('[data-act="chat"]').classList.toggle("on", name === "chat");
-    pagesBtn().classList.toggle("on", name === "pages" || leftOpen);
+    pagesBtn().classList.toggle("on", name === "pages");
     PR.$('[data-act="notes"]').classList.toggle("on", name === "notes");
     PR.$('[data-act="figs"]').classList.toggle("on", name === "figs");
     PR.$('[data-act="map"]').classList.toggle("on", name === "map");
@@ -58,26 +54,12 @@
     if (node) window.scrollBy(0, node.getBoundingClientRect().top - before);
   }
 
-  /* ---------- 宽度：右栏（--side-w，拖左边缘）、左栏（--left-w，拖右边缘）；两栏都开时按比例缩到中间留够 ---------- */
-  const MIN_MID = 640;  // 中间版心（含两侧页边）至少这么宽，正文大约 520 像素
-  const sideWanted = () => PR.ls.get("easyread-side-w", 0) || Math.min(innerWidth * 0.44, 720);
-  const leftWanted = () => PR.ls.get("easyread-left-w", 0) || Math.min(innerWidth * 0.36, 640);
+  /* ---------- 宽度：右栏（--side-w），拖它的左边缘调，记在本机，双击恢复默认 ---------- */
   const clampW = (w) => Math.round(Math.max(320, Math.min(w, innerWidth - 520, innerWidth * 0.75)));
   function applyCols() {
     const w = PR.ls.get("easyread-side-w", 0);
     if (w && wideScreen()) root.style.setProperty("--side-w", clampW(w) + "px");
     else root.style.removeProperty("--side-w");
-    body.classList.toggle("pvl", leftDock());
-    if (!leftOpen) { root.style.removeProperty("--Lw"); root.style.removeProperty("--Rw"); return; }
-    let L = leftWanted(), R = PR.side ? Math.min(sideWanted(), innerWidth * 0.75) : 0;
-    const room = innerWidth - MIN_MID - 24;
-    if (L + R > room) {
-      const k = room / (L + R);
-      L = Math.max(300, L * k);
-      if (R) R = Math.max(320, Math.min(R * k, room - L));
-    }
-    root.style.setProperty("--Lw", Math.round(L) + "px");
-    if (R) root.style.setProperty("--Rw", Math.round(R) + "px"); else root.style.removeProperty("--Rw");
   }
   function relayout() {  // 拖完宽度：重排后还停在刚才读的地方，原页换合适大小的图
     const anchor = PR.readingBlock && PR.readingBlock();
@@ -92,12 +74,9 @@
     };
   }
   applyCols();
-  window.addEventListener("resize", PR.debounce(() => {
-    if (leftOpen && !wideScreen()) { setLeft(false); PR.openSide("pages"); }  // 窗口变窄：左边放不下，回到右侧
-    applyCols();
-  }, 150));
+  window.addEventListener("resize", PR.debounce(applyCols, 150));
 
-  /* 拖动条：右栏在它左边缘、左栏在它右边缘。拖的时候只动面板（--side-drag / --left-drag），松手才重排正文 */
+  /* 拖动条在右栏左边缘。拖的时候只动面板（--side-drag），松手才重排正文，长论文拖起来也不卡 */
   function makeGrip(id, title, onMove, onDone, onReset) {
     const g = PR.el("div", { id, title });
     document.body.appendChild(g);
@@ -125,41 +104,15 @@
   }
   document.addEventListener("selectstart", (e) => { if (body.classList.contains("resizing")) e.preventDefault(); });
   makeGrip("side-grip", "拖动调整右侧面板宽度（双击恢复默认）",
-    (ev) => { const L = leftOpen ? parseFloat(getComputedStyle(root).getPropertyValue("--Lw")) || 0 : 0;
-      const w = Math.round(Math.max(320, Math.min(innerWidth - ev.clientX, innerWidth - L - MIN_MID - 24, innerWidth * 0.75)));
-      root.style.setProperty("--side-drag", w + "px"); return w; },
+    (ev) => { const w = clampW(innerWidth - ev.clientX); root.style.setProperty("--side-drag", w + "px"); return w; },
     (w) => { root.style.removeProperty("--side-drag"); if (w) PR.ls.set("easyread-side-w", w); },
     () => PR.ls.set("easyread-side-w", 0));
-  makeGrip("left-grip", "拖动调整左侧原文宽度（双击恢复默认）",
-    (ev) => { const R = PR.side ? (parseFloat(getComputedStyle(root).getPropertyValue("--Rw")) || sideWanted()) : 0;
-      const w = Math.round(Math.max(300, Math.min(ev.clientX, innerWidth - R - MIN_MID - 24, innerWidth * 0.6)));
-      root.style.setProperty("--left-drag", w + "px"); return w; },
-    (w) => { root.style.removeProperty("--left-drag"); if (w) PR.ls.set("easyread-left-w", w); },
-    () => PR.ls.set("easyread-left-w", 0));
 
   /* ---------- 原文面板开关 ---------- */
-  function setLeft(open) {
-    leftOpen = open;
-    applyCols();
-    body.classList.toggle("pvl-show", open);  // 面板先滑出来
-    pagesBtn().classList.toggle("on", open || PR.side === "pages");
-    clearTimeout(leftT);
-    leftT = setTimeout(() => requestAnimationFrame(() => {
-      if (body.classList.contains("pvl-open") === leftOpen) return;
-      keepPlace(() => body.classList.toggle("pvl-open", leftOpen));  // 再让正文让位
-      if (leftOpen && view === "page") showPage(pvPage, pvBlock);
-    }), 300);
-  }
   PR.togglePages = function (force) {
     const open = force != null ? force : !PR.pagesOpen();
-    if (leftDock()) {
-      if (PR.side === "pages") PR.openSide(null);
-      setLeft(open);
-    } else {
-      if (leftOpen) setLeft(false);
-      PR.openSide(open ? "pages" : (PR.side === "pages" ? null : PR.side));
-    }
-    if (open) { PR.syncPage(true); }
+    PR.openSide(open ? "pages" : (PR.side === "pages" ? null : PR.side));
+    if (open) PR.syncPage(true);
   };
   PR.openPage = function (page, blockId) {
     pvBlock = blockId || null;
@@ -167,14 +120,6 @@
     if (!PR.pagesOpen()) PR.togglePages(true);
     showPage(page, blockId);
   };
-  function setDock(d) {
-    const wasOpen = PR.pagesOpen();
-    dock = d;
-    savePv({ dock: d });
-    if (wasOpen) { if (d === "left") { if (PR.side === "pages") PR.openSide(null); setLeft(true); } else { setLeft(false); PR.openSide("pages"); } }
-    applyCols();
-    updateHead();
-  }
 
   /* ---------- 原页 ---------- */
   /* 原图是 2.4 倍渲染（约 1500 像素宽、几百 KB），面板用不了那么大：要一张和面板一样宽的，服务端生成一次后缓存 */
@@ -272,10 +217,6 @@
     PR.$$("[data-pvv]").forEach((b) => b.classList.toggle("on", b.dataset.pvv === v));
     if (v === "en") syncEn(true); else if (PR.pagesOpen()) PR.syncPage(true);
   }
-  function updateHead() {
-    const d = PR.$('[data-pv="dock"]');
-    if (d) { d.textContent = dock === "left" ? "⇥" : "⇤"; d.title = dock === "left" ? "停回右侧" : "停靠到左侧：右边留给看图、脉络"; }
-  }
 
   PR.syncPage = function (force) {
     if (!PR.pagesOpen()) return;
@@ -299,7 +240,6 @@
     if (!b) return;
     const act = b.dataset.pv;
     if (act === "close") PR.togglePages(false);
-    if (act === "dock") setDock(dock === "left" ? "right" : "left");
     if (act === "prev") showPage(pvPage - 1, pvBlock);
     if (act === "next") showPage(pvPage + 1, pvBlock);
     if (act === "zoom") {
@@ -323,5 +263,4 @@
   }
   PR.$("#pageview").classList.toggle("v-en", view === "en");
   PR.$$("[data-pvv]").forEach((b) => b.classList.toggle("on", b.dataset.pvv === view));
-  updateHead();
 })(window.PR);

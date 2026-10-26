@@ -4,7 +4,7 @@
   "use strict";
   PR.runAction = function (id) {
     const g = {
-      mode: () => PR.setPref("mode", PR.prefs.mode === "bi" ? "zh" : "bi"),
+      mode: () => PR.setPref("mode", { zh: "bi", bi: "en", en: "zh" }[PR.prefs.mode] || "zh"),  // 译文 → 对照 → 原文
       toc: () => PR.toggleDrawer(null, "toc"),
       search: () => PR.openSearch && PR.openSearch(),
       fontUp: () => PR.bumpFont(1), fontDown: () => PR.bumpFont(-1), fontReset: () => PR.resetType(),
