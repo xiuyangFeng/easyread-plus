@@ -20,6 +20,7 @@
   let focus = null;                    // 几张图里“聚焦”的那张
 
   const keyOf = (ids) => ids.join(",");
+  const readKey = (r) => (r ? r.id : "-" + ((PR.nearestGisted ? PR.nearestGisted(PR.readingBlock()) : PR.readingBlock()) || ""));
   const wide = () => innerWidth >= 1180;  // 窄屏时面板盖在正文上，不自动弹
 
   panel.innerHTML =
@@ -29,6 +30,7 @@
     '<button class="btn icon" data-fp="close" title="关闭">×</button></div>' +
     '<div class="fp-top"></div><div class="fp-split" title="拖动调整图和脉络的上下比例（双击恢复）"></div><div class="fp-bottom"></div>';
   const top = panel.querySelector(".fp-top");
+  const titleEl = panel.querySelector(".fp-title");
   const bottom = panel.querySelector(".fp-bottom");
   const fromBtn = panel.querySelector(".fp-from");
   panel.querySelector(".pv-follow input").addEventListener("change", (e) => {
@@ -68,17 +70,20 @@
     return best;
   }
 
+  /* 面板开着：附近提到了图就上图下脉络；读到没提图的地方，有脉络就把图收起、脉络占满（没有脉络时图留着） */
   PR.syncFigs = function () {
-    if (!PR.feature("figs") || !refBlocks.length) return;
+    if (!PR.feature("figs")) return;
     if (PR.side && PR.side !== "figs") return;
-    const r = activeRef();
-    if (!r) return;
+    const r = refBlocks.length ? activeRef() : null;
     if (PR.side === "figs") {
-      if (r.id === lastActive) return;
-      lastActive = r.id;
-      if (keyOf(r.figs) !== keyOf(shown) || r.id !== from) show(r.figs, r.id);
+      const key = readKey(r);
+      if (key === lastActive) return;
+      lastActive = key;
+      if (r) { if (keyOf(r.figs) !== keyOf(shown) || r.id !== from) show(r.figs, r.id); }
+      else if (shown.length && ctxOn()) show([], null);
       return;
     }
+    if (!r) return;
     if (auto && wide() && keyOf(r.figs) !== dismissed && !body.classList.contains("drawer-open")) {
       lastActive = r.id;
       show(r.figs, r.id);
@@ -90,15 +95,15 @@
     const open = force != null ? force : PR.side !== "figs";
     if (!open) return PR.openSide(null);
     const r = activeRef();
-    lastActive = r ? r.id : null;
-    if (r) show(r.figs, r.id); else if (!shown.length) render();
+    lastActive = readKey(r);
+    if (r) show(r.figs, r.id); else if (ctxOn()) show([], null); else if (!shown.length) render();
     PR.openSide("figs");
   };
 
   /* 正文里点“图 N”：面板开着就在面板里看（不跳走），返回 true；没开就照常跳到图 */
   PR.figShow = function (fid, srcBlock) {
     if (PR.side !== "figs" || !PR.blockById[fid]) return false;
-    lastActive = (activeRef() || {}).id || null;
+    lastActive = readKey(activeRef());
     if (!shown.includes(fid)) {
       const r = srcBlock && refBlocks.find((x) => x.id === srcBlock);
       show(r && r.figs.includes(fid) ? r.figs : [fid], srcBlock || from);
@@ -121,7 +126,7 @@
     if (pair && PR.blockById[pair] && PR.blockById[pair].type === "figure" && pair !== fid) { shown = [pair, fid]; focus = null; }
     else if (shown.includes(fid)) focus = shown.length > 1 ? fid : null;
     else { shown = [fid]; focus = null; }
-    lastActive = (activeRef() || {}).id || null;
+    lastActive = readKey(activeRef());
     render();
     const card = top.querySelector('.fp-fig[data-id="' + fid + '"]');
     if (card) { card.classList.remove("flash"); void card.offsetWidth; card.classList.add("flash"); }
@@ -164,6 +169,14 @@
   function render() {
     const ids = shown.filter((id) => PR.blockById[id]);
     panel.classList.toggle("has-ctx", ctxOn());
+    panel.classList.toggle("ctx-only", !ids.length && ctxOn());
+    titleEl.textContent = !ids.length && ctxOn() ? "本段脉络" : "看图";
+    if (!ids.length && ctxOn()) {
+      fromBtn.textContent = "这里没有提到图";
+      top.className = "fp-top none"; top.innerHTML = ""; top.style.flexBasis = "";
+      renderCtx();
+      return;
+    }
     if (!ids.length) {
       const all = (S.paper.blocks || []).filter((b) => b.type === "figure" && b.num);
       fromBtn.textContent = "";
@@ -258,8 +271,14 @@
       i = 0;
     }
     let h = "";
+    if (panel.classList.contains("ctx-only")) {  // 上文最近提到的图：一键拿回来
+      const line = innerHeight * 0.3;
+      const prev = refBlocks.filter((x) => x.el.getBoundingClientRect().top < line).pop();
+      if (prev) h += '<button class="fp-prevfigs" data-fp="prevfigs" data-id="' + PR.esc(prev.id) + '">' + PR.icon("image", "sm") + "看上文提到的 " + prev.figs.map((f) => PR.esc(labelOf(f))).join("、") + "</button>";
+    }
     if (sec) {
-      const lo = Math.max(0, i - 1), hi = Math.min(sec.paras.length, i + 3);  // 前 1 段、本段、后 2 段：留地方给下面的图表关系
+      const full = panel.classList.contains("ctx-only");  // 没有图、脉络占满整个面板：多看几段
+      const lo = Math.max(0, i - (full ? 3 : 1)), hi = Math.min(sec.paras.length, i + (full ? 7 : 3));  // 有图时前 1 段、本段、后 2 段，留地方给图表关系
       h += '<div class="fp-ctx-h"><span class="ttl">本段脉络 · ' + PR.esc(sec.title) + '</span><span class="grow"></span><button class="btn sm" data-fp="map" title="打开全文脉络">全文脉络 ›</button></div>';
       const sg = ((G.sections || {})[sec.id] || {}).gist;
       if (sg && lo === 0) h += '<div class="mp-sec-g">' + PR.esc(sg) + "</div>";
@@ -345,10 +364,11 @@
     if (act === "jump" && id) PR.jumpTo("b-" + id);
     if (act === "zoom" && id) { const im = fig.querySelector(".fp-img img"); if (im) im.click(); }
     if (act === "page" && id) { const fb = PR.blockById[id]; PR.openPage(fb.page, id); }
-    if (act === "pick") { lastActive = (activeRef() || {}).id || null; show([b.dataset.id], null); }
+    if (act === "pick") { lastActive = readKey(activeRef()); show([b.dataset.id], null); }
     if (act === "focus") { const fid = b.dataset.id || id; focus = focus === fid ? null : fid; render(); }
     if (act === "map") PR.toggleMap(true);
     if (act === "relations") PR.gistRun("relations");
+    if (act === "prevfigs") { const r = refBlocks.find((x) => x.id === b.dataset.id); if (r) { lastActive = readKey(activeRef()); show(r.figs, r.id); } }
   });
   /* 下半部分：段落卡片跳到原文；图表节点在上面换图（关系里的两张图一起摆出来对比），表格和段落跳到原文 */
   bottom.addEventListener("click", (e) => {

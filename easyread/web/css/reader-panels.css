@@ -83,6 +83,9 @@ body.pv-zoom .pv-page { width: 165%; max-width: none; }
 body.resizing-v { cursor: row-resize; user-select: none; }
 .fp-bottom { display: none; flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 2px 14px 24px; }
 #figpanel.has-ctx .fp-split, #figpanel.has-ctx .fp-bottom { display: block; }
+#figpanel.ctx-only .fp-top, #figpanel.ctx-only .fp-split { display: none; }  /* 这一带没提到图：脉络占满 */
+.fp-prevfigs { display: inline-flex; align-items: center; gap: 6px; margin: 10px 0 2px; padding: 5px 10px; border-radius: 8px; font-size: 12.5px; color: var(--accent); background: var(--accent-soft); }
+.fp-prevfigs:hover { background: var(--accent-soft-2); }
 .fp-fig.flash { animation: flash 1.6s ease; }
 .fp-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 13px; }
 .fp-bar .pg { font-size: 11.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
