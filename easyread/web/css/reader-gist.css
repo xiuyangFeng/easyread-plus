@@ -129,3 +129,66 @@ body.mp-open #mappanel { transform: none; }
 .mp-nosup { margin: 6px 0 0 26px; }
 .mp-foot { margin-top: 4px; }
 @media (max-width: 760px) { #mappanel { width: 100vw; } }
+
+/* ---------- 图表关系、结果链（看图面板下半部分、脉络面板“图表”页共用） ---------- */
+.rel-cmp { --relc: #2d6aa3; } .rel-up { --relc: #3d8a5a; } .rel-gen { --relc: #2a8a85; } .rel-fine { --relc: #7a5fa8; }
+.rel-co { --relc: #1f6b4a; } .rel-add { --relc: #7d8794; } .rel-anti { --relc: #b4533c; }
+:root[data-theme="dark"] .rel-cmp { --relc: #7fb0e0; } :root[data-theme="dark"] .rel-up { --relc: #7cc79a; } :root[data-theme="dark"] .rel-gen { --relc: #6cc7c1; }
+:root[data-theme="dark"] .rel-fine { --relc: #b49ce0; } :root[data-theme="dark"] .rel-co { --relc: #63b88f; } :root[data-theme="dark"] .rel-add { --relc: #a6afbb; } :root[data-theme="dark"] .rel-anti { --relc: #e08a72; }
+.fp-ctx-h { display: flex; align-items: center; gap: 6px; margin: 12px 0 6px; font-size: 12px; color: var(--ink-3); letter-spacing: .03em; }
+.fp-ctx-h .ttl { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp-ctx-h .grow { flex: 1; }
+.fp-ctx-h .btn.sm { height: 24px; font-size: 12px; color: var(--ink-3); flex: none; }
+.fp-ctx-h .btn.sm:hover { color: var(--accent); }
+.fp-more { margin: 4px 0 4px 4px; }
+.fp-bottom .mp-card { font-size: 12.5px; padding: 6px 10px; }
+.fp-links { display: grid; gap: 6px; }
+.fp-link { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 6px 8px; border-radius: 8px; background: var(--surface); box-shadow: inset 3px 0 0 var(--relc), 0 0 0 1px var(--rule); font-size: 12.5px; }
+.fp-link .rel { font: 600 11.5px var(--ui); color: var(--relc); white-space: nowrap; }
+.fp-link .note { flex-basis: 100%; font-size: 12px; line-height: 1.55; color: var(--ink-3); padding-left: 2px; }
+.fp-node { display: inline-flex; align-items: baseline; gap: 4px; max-width: 100%; padding: 1px 7px; border-radius: 6px; font-size: 12px; line-height: 20px; color: var(--ink-2); background: var(--rule); text-align: left; }
+.fp-node > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp-node.float { font-weight: 600; color: var(--accent); background: var(--accent-soft-2); }
+.fp-node.on { box-shadow: 0 0 0 1.5px var(--accent); }
+.fp-node:hover { color: var(--ink); box-shadow: 0 0 0 1px var(--rule-2); }
+.fp-node.float:hover { box-shadow: 0 0 0 1.5px var(--accent); }
+.fp-node .g-role { font-size: 11px; line-height: 16px; }
+.fp-chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 4px; }
+.fp-chain .step { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 3px 6px 3px 4px; border-radius: 8px; background: var(--surface); box-shadow: 0 0 0 1px var(--rule); }
+.fp-chain .step.here { background: var(--accent-soft); box-shadow: 0 0 0 1.5px var(--accent); }
+.fp-chain .k { flex: none; width: 18px; height: 18px; border-radius: 50%; text-align: center; font: 600 11px/18px var(--ui); color: var(--bg); background: var(--ink-3); }
+.fp-chain .here .k { background: var(--accent); }
+.fp-chain .note { font-size: 11.5px; color: var(--ink-3); }
+.fp-chain .arr { color: var(--ink-3); font-size: 12px; }
+.fp-concl, .mp-concl { margin: 8px 0 0; padding: 7px 10px; border-radius: 8px; background: var(--accent-soft); font-size: 12.5px; line-height: 1.6; color: var(--ink); }
+
+/* 脉络面板“图表”页 */
+.mp-h2 { margin: 18px 0 8px; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.mp-h2 .hint { font-weight: 400; margin-left: 6px; }
+.mp-h2:first-child { margin-top: 2px; }
+.mp-chainbox { margin: 0 0 14px; padding: 10px 12px 12px; border-radius: 10px; background: var(--surface); box-shadow: 0 0 0 1px var(--rule); }
+.mp-chain-t { font: 600 13px var(--ui); color: var(--accent); margin-bottom: 6px; }
+.mp-arrow { margin: 2px 0 2px 14px; font-size: 13px; color: var(--ink-3); }
+.mp-arrow span { font-size: 11.5px; margin-left: 4px; }
+.mp-arrow.first { margin-top: 0; }
+.mp-node { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; padding: 7px 9px; border-radius: 8px; background: var(--bg); box-shadow: 0 0 0 1px var(--rule); }
+.mp-node:hover, .mp-node.on-read { box-shadow: 0 0 0 1.5px var(--accent); }
+.mp-node img { flex: none; width: 108px; max-height: 76px; object-fit: contain; border-radius: 3px; background: #fff; mix-blend-mode: multiply; }
+:root[data-theme="dark"] .mp-node img { mix-blend-mode: normal; filter: invert(.88) hue-rotate(180deg); background: transparent; }
+.mp-node .body { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; min-width: 0; font: 13px/1.6 var(--serif-zh); color: var(--ink-2); }
+.mp-node .t { flex: 1 1 10em; min-width: 0; color: var(--ink); }
+.mp-node .look { flex-basis: 100%; font: 12px/1.55 var(--ui); color: var(--ink-3); }
+.mp-node .pg { font: 11px var(--ui); color: var(--ink-3); }
+.relbar { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 4px; vertical-align: middle; background: var(--relc); }
+.mp-legend span[class^="rel-"] { color: var(--ink-3); }
+/* 弧线图：左边 SVG 画弧，右边一行一张图表 */
+.mp-arcs { position: relative; padding-left: var(--gut); }
+.mp-arcs svg { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.mp-arcs path { fill: none; stroke: var(--relc); stroke-width: 1.6; opacity: .75; transition: opacity .15s, stroke-width .15s; pointer-events: stroke; }
+.mp-arcs.hovering path { opacity: .12; }
+.mp-arcs.hovering path.hl { opacity: 1; stroke-width: 2.6; }
+.arc-row { display: flex; align-items: center; gap: 8px; width: 100%; height: var(--row); padding: 0 8px; text-align: left; border-radius: 6px; font-size: 12.5px; color: var(--ink-2); position: relative; }
+.arc-row::before { content: ""; position: absolute; left: -4px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--accent); }
+.arc-row.lone::before { background: var(--rule-2); }
+.arc-row:hover, .arc-row.hl, .arc-row.on-read { background: var(--accent-soft); color: var(--ink); }
+.arc-row .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.45; }

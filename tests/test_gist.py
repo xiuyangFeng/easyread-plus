@@ -23,7 +23,7 @@ def make_ws() -> Workspace:
         {"id": "p1-3", "type": "para", "page": 1, "zh": "其中 x 是输入。"},  # 太短，不写
         {"id": "s2", "type": "heading", "level": 1, "page": 2, "num": "2", "zh": "方法"},
         {"id": "s2-1", "type": "heading", "level": 2, "page": 2, "num": "2.1", "zh": "编码器"},
-        {"id": "p2-1", "type": "para", "page": 2, "zh": "方法第一段。" + LONG},
+        {"id": "p2-1", "type": "para", "page": 2, "zh": "方法第一段，见图 1 和表 9。" + LONG},
         {"id": "p2-2", "type": "list", "page": 2, "items": [{"zh": "第一项。" + LONG}, {"zh": "第二项。"}]},
         {"id": "fig1", "type": "figure", "page": 2, "num": "1", "caption_zh": "图 1：总体框架。"},
         {"id": "refs", "type": "references", "page": 3, "zh": "参考文献"},
@@ -35,6 +35,13 @@ def make_ws() -> Workspace:
 
 def fake_engine(calls: list):
     def run(cfg, prompt, cwd, images=None, cancel=None):
+        if "图与图、结果与结果之间" in prompt:
+            calls.append("relations")
+            return json.dumps({"floats": [{"id": "fig1", "q": "框架长什么样", "look": "先看左边"}, {"id": "fig9", "q": "编的"}],
+                               "links": [{"from": "p2-1", "to": "fig1", "rel": "细化", "note": "图解方法"}, {"from": "fig1", "to": "fig1", "rel": "对照"},
+                                         {"from": "p2-1", "to": "p9-9", "rel": "对照"}, {"from": "p1-2", "to": "p2-1", "rel": "乱写", "note": ""}],
+                               "chains": [{"title": "方法链", "steps": [{"id": "p1-2", "note": "提问"}, {"id": "fig1"}, {"id": "nope"}], "conclusion": "成立"},
+                                          {"title": "只有一步", "steps": [{"id": "p2-1"}]}]})
         if "整理全文的论证结构" in prompt:
             calls.append("structure")
             return json.dumps({"story": "先提出问题，再给方法。", "sections": [{"id": "s2", "gist": "给出方法"}, {"id": "nope", "gist": "x"}],
@@ -67,13 +74,13 @@ class GistTest(unittest.TestCase):
         ids = [p["id"] for s in o["sections"] for p in s["paras"]]
         self.assertEqual(ids, ["p1-1", "p1-2", "p2-1", "p2-2"])  # 短段、参考文献后的段不算
         self.assertEqual(o["sections"][2]["paras"][0]["sub"], "2.1 编码器")
-        self.assertEqual(o["floats"], [{"id": "fig1", "label": "图 1：总体框架。"}])
+        self.assertEqual([(f["id"], f["kind"], f["num"]) for f in o["floats"]], [("fig1", "图", "1")])
 
     def test_generate_then_up_to_date(self):
         res, calls = self.run_gist()
-        self.assertEqual(res, {"blocks": 4, "failed": 0})
-        self.assertEqual(sorted(c for c in calls if c != "structure"), [("p1-1",), ("p1-2",), ("p2-1", "p2-2")])
-        self.assertEqual(calls[-1], "structure")
+        self.assertEqual((res["blocks"], res["failed"], res["relations_error"]), (4, 0, ""))
+        self.assertEqual(sorted(c for c in calls if isinstance(c, tuple)), [("p1-1",), ("p1-2",), ("p2-1", "p2-2")])
+        self.assertEqual(calls[-2:], ["structure", "relations"])
         d = self.ws.load("gist")
         self.assertEqual(d["blocks"]["p2-1"]["role"], "方法")
         self.assertEqual(d["story"], "先提出问题，再给方法。")
@@ -81,6 +88,32 @@ class GistTest(unittest.TestCase):
         self.assertEqual([s["id"] for s in d["claims"][0]["support"]], ["p2-1", "fig1"])  # 编出来的 id 丢掉
         res, calls = self.run_gist()
         self.assertEqual((res["blocks"], calls), (0, []))
+
+    def test_relations_are_validated(self):
+        o = gist.outline(self.ws)
+        self.assertEqual(o["sections"][2]["paras"][0]["refs"], ["fig1"])  # 表 9 不存在，不算
+        self.run_gist()
+        d = self.ws.load("gist")
+        self.assertEqual(d["floats"], {"fig1": {"q": "框架长什么样", "look": "先看左边"}})  # fig9 不存在
+        self.assertEqual([(x["from"], x["to"], x["rel"]) for x in d["links"]], [("p2-1", "fig1", "细化"), ("p1-2", "p2-1", "补充")])
+        self.assertEqual(len(d["chains"]), 1)  # 只剩一步的链丢掉
+        self.assertEqual([st["id"] for st in d["chains"][0]["steps"]], ["p1-2", "fig1"])
+        _, calls = self.run_gist("relations")
+        self.assertEqual(calls, ["relations"])
+
+    def test_relations_failure_keeps_gists(self):
+        calls = []
+        good = fake_engine(calls)
+
+        def flaky(cfg, prompt, cwd, images=None, cancel=None):
+            if "图与图、结果与结果之间" in prompt:
+                raise engines.EngineError("超时")
+            return good(cfg, prompt, cwd)
+        with mock.patch.object(engines, "run", flaky):
+            res = gist.run(self.ws, self.cfg, "missing", threading.Event(), lambda *a: None)
+        self.assertEqual(res["blocks"], 4)
+        self.assertIn("超时", res["relations_error"])
+        self.assertTrue(self.ws.load("gist")["claims"])
 
     def test_edited_translation_makes_only_that_paragraph_stale(self):
         self.run_gist()

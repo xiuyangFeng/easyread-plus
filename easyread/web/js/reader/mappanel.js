@@ -1,6 +1,7 @@
 /* 右侧面板：论文脉络。
    - 脉络：全文故事线；全景条（每节一行，每段一个按角色着色的点）；再按章节把每段主旨排成卡片，卡片之间标出承接（递进、转折……）。
    - 论点：模型提炼的 3–6 个核心论点，每个下面挂着支撑它的段落、图、表，点了跳回原文核对；证据单薄的会标出来。
+   - 图表：结果链（证据顺序，图表带缩略图）、图表关系弧线图（对照、递进、推广……）、全部关系。
    都是竖着排，面板多窄都不用左右滑。跟着阅读位置高亮当前段。 */
 (function (PR) {
   "use strict";
@@ -14,7 +15,7 @@
 
   panel.innerHTML =
     '<div class="mp-head"><b class="mp-title">论文脉络</b>' +
-    '<div class="seg"><button data-mt="flow">脉络</button><button data-mt="claims">论点</button></div>' +
+    '<div class="seg"><button data-mt="flow">脉络</button><button data-mt="claims">论点</button><button data-mt="rel">图表</button></div>' +
     '<span class="grow"></span>' +
     '<label class="pv-follow" title="跟着阅读位置高亮、滚动"><input type="checkbox"' + (follow ? " checked" : "") + "> 跟随</label>" +
     '<button class="btn sm" data-mp="skim" title="正文收成一行行主旨，快速扫论证骨架">只看主旨</button>' +
@@ -51,6 +52,7 @@
     return secs.filter((s) => s.paras.length);
   }
   const secLabel = (s) => s.title;
+  PR.gistOutline = outline;
 
   /* ---------- 渲染 ---------- */
   function render() {
@@ -62,7 +64,7 @@
     const total = secs.reduce((n, s) => n + s.paras.length, 0);
     const have = secs.reduce((n, s) => n + s.paras.filter((p) => PR.gists()[p.id]).length, 0);
     if (!have) { bodyEl.innerHTML = emptyHtml(total, secs.length); return; }
-    bodyEl.innerHTML = tab === "claims" ? claimsHtml() : flowHtml(secs);
+    bodyEl.innerHTML = tab === "claims" ? claimsHtml() : tab === "rel" ? relHtml() : flowHtml(secs);
     syncCurrent(false);
   }
 
@@ -167,6 +169,89 @@
       '<p class="hint mp-foot">论点和证据由模型根据各段主旨提炼，点每一条可以跳回原文核对。</p>';
   }
 
+  /* ---------- 图表：结果链 + 图表关系弧线图 ---------- */
+  const REL_ORDER = ["对照", "递进", "推广", "细化", "互证", "补充", "反差"];
+  function nodeHtml(id) {
+    const b = PR.blockById[id];
+    if (!b) return "";
+    const info = ((G().floats || {})[id]) || {};
+    if (b.type === "figure" || b.type === "table") {
+      return '<button class="mp-node float" data-jump="' + PR.esc(id) + '" data-card="' + PR.esc(id) + '">' +
+        (b.type === "figure" && b.src ? '<img src="' + PR.imageUrl(b.src) + '" alt="" loading="lazy" decoding="async">' : "") +
+        '<span class="body"><span class="s-float">' + PR.esc(PR.floatLabel ? PR.floatLabel(id) : id) + "</span>" +
+        (info.q ? '<span class="t">' + PR.esc(info.q) + "</span>" : "") + (info.look ? '<span class="look">看点：' + PR.esc(info.look) + "</span>" : "") + "</span></button>";
+    }
+    const e = PR.gists()[id];
+    return '<button class="mp-node para" data-jump="' + PR.esc(id) + '" data-card="' + PR.esc(id) + '"><span class="body">' +
+      (e && e.role ? '<span class="g-role ' + PR.roleCls(e.role) + '">' + PR.esc(e.role) + "</span>" : "") +
+      '<span class="t">' + PR.esc(e ? e.gist : PR.plain(PR.gistSource(b)).slice(0, 40)) + '</span><span class="pg">p.' + b.page + "</span></span></button>";
+  }
+
+  function relHtml() {
+    const g = G();
+    const chains = g.chains || [], links = g.links || [];
+    if (!chains.length && !links.length && !Object.keys(g.floats || {}).length) {
+      return '<div class="mp-empty"><p>还没有整理图表和结果之间的关系。</p><p class="hint">会看一遍所有图表的题注和结果段落的主旨：说明每张图回答什么、该看哪里，图表之间是对照、递进还是推广，再串出几条“结果链”。只调用一次模型。</p>' +
+        (PR.canAsk() && !PR.gistJob ? '<button class="btn primary" data-mp="relations">整理图表关系</button>' : "") + "</div>";
+    }
+    let h = "";
+    // 结果链：竖着的流程，图表带缩略图
+    if (chains.length) {
+      h += '<div class="mp-h2">结果链 <span class="hint">论文用来证明每件事的证据顺序</span></div>';
+      h += chains.map((c) => '<div class="mp-chainbox"><div class="mp-chain-t">' + PR.esc(c.title) + "</div>" +
+        c.steps.map((st, k) => (k ? '<div class="mp-arrow">↓' + (st.note ? " <span>" + PR.esc(st.note) + "</span>" : "") + "</div>" : (st.note ? '<div class="mp-arrow first"><span>' + PR.esc(st.note) + "</span></div>" : "")) + nodeHtml(st.id)).join("") +
+        (c.conclusion ? '<div class="mp-arrow">⇓</div><div class="mp-concl">' + PR.esc(c.conclusion) + "</div>" : "") + "</div>").join("");
+    }
+    // 弧线图：图表按文中顺序排一列，有关系的用弧线连起来（颜色 = 关系），悬停高亮
+    const floats = (S.paper.blocks || []).filter((b) => (b.type === "figure" || b.type === "table") && (b.num || (g.floats || {})[b.id]));
+    const idx = Object.fromEntries(floats.map((b, i) => [b.id, i]));
+    const fl = links.filter((l) => idx[l.from] != null && idx[l.to] != null);
+    if (floats.length && fl.length) {
+      const ROW = 46, GUT = 74;
+      const used = new Set(fl.flatMap((l) => [l.from, l.to]));
+      const arcs = fl.map((l) => {
+        const a = idx[l.from], b = idx[l.to], y1 = a * ROW + ROW / 2, y2 = b * ROW + ROW / 2;
+        const d = Math.min(GUT - 8, 14 + 9 * Math.abs(b - a));
+        return '<path class="' + PR.relCls(l.rel) + '" data-a="' + PR.esc(l.from) + '" data-b="' + PR.esc(l.to) + '" d="M' + GUT + " " + y1 + " C" + (GUT - d) + " " + y1 + " " + (GUT - d) + " " + y2 + " " + GUT + " " + y2 + '">' +
+          "<title>" + PR.esc(PR.floatLabel(l.from) + " " + l.rel + " " + PR.floatLabel(l.to) + (l.note ? "：" + l.note : "")) + "</title></path>";
+      }).join("");
+      h += '<div class="mp-h2">图表关系 <span class="hint">悬停一张图看它连着谁</span></div>' +
+        '<div class="mp-legend">' + REL_ORDER.filter((r) => fl.some((l) => l.rel === r)).map((r) => '<span class="' + PR.relCls(r) + '"><i class="relbar"></i>' + r + "</span>").join("") + "</div>" +
+        '<div class="mp-arcs" style="--row:' + ROW + 'px;--gut:' + GUT + 'px"><svg width="' + GUT + '" height="' + floats.length * ROW + '">' + arcs + "</svg>" +
+        floats.map((b) => { const info = (g.floats || {})[b.id] || {};
+          return '<button class="arc-row' + (used.has(b.id) ? "" : " lone") + '" data-jump="' + PR.esc(b.id) + '" data-card="' + PR.esc(b.id) + '" data-arc="' + PR.esc(b.id) + '">' +
+            '<span class="s-float">' + PR.esc(PR.floatLabel(b.id)) + '</span><span class="t">' + PR.esc(info.q || PR.plain(PR.textFor(b.id + "#caption") || "").replace(/^[^：:]{1,12}[：:]\s*/, "")) + "</span></button>"; }).join("") + "</div>";
+    }
+    // 全部关系（含段落）
+    if (links.length) {
+      h += '<div class="mp-h2">全部关系</div><div class="fp-links">' + links.map((l) =>
+        '<div class="fp-link ' + PR.relCls(l.rel) + '">' + chip(l.from) + '<span class="rel">' + PR.esc(l.rel) + " →</span>" + chip(l.to) +
+        (l.note ? '<span class="note">' + PR.esc(l.note) + "</span>" : "") + "</div>").join("") + "</div>";
+    }
+    return h + '<p class="hint mp-foot">图表关系和结果链由模型根据题注和各段主旨整理，点任何一项跳回原文核对。</p>';
+  }
+  function chip(id) {
+    const b = PR.blockById[id];
+    if (!b) return "";
+    if (b.type === "figure" || b.type === "table") return '<button class="fp-node float" data-jump="' + PR.esc(id) + '" data-card="' + PR.esc(id) + '">' + PR.esc(PR.floatLabel(id)) + "</button>";
+    const e = PR.gists()[id];
+    return '<button class="fp-node para" data-jump="' + PR.esc(id) + '" data-card="' + PR.esc(id) + '" title="' + PR.esc(e ? e.gist : "") + '">' +
+      (e && e.role ? '<span class="g-role ' + PR.roleCls(e.role) + '">' + PR.esc(e.role) + "</span>" : "") + "<span>" + PR.esc(e ? e.gist.slice(0, 16) + (e.gist.length > 16 ? "…" : "") : "p." + b.page) + "</span></button>";
+  }
+  /* 悬停弧线图里的一张图：高亮和它相连的弧和图 */
+  const clearArcs = () => PR.$$(".mp-arcs", bodyEl).forEach((b) => { b.classList.remove("hovering"); PR.$$(".hl", b).forEach((x) => x.classList.remove("hl")); });
+  bodyEl.addEventListener("mouseover", (e) => {
+    const r = e.target.closest("[data-arc]");
+    const box = e.target.closest(".mp-arcs");
+    if (!box) return clearArcs();
+    const id = r && r.dataset.arc;
+    box.classList.toggle("hovering", !!id);
+    PR.$$("path", box).forEach((p) => p.classList.toggle("hl", !!id && (p.dataset.a === id || p.dataset.b === id)));
+    const linked = new Set(PR.$$("path.hl", box).flatMap((p) => [p.dataset.a, p.dataset.b]));
+    PR.$$(".arc-row", box).forEach((x) => x.classList.toggle("hl", linked.has(x.dataset.arc)));
+  });
+  bodyEl.addEventListener("mouseleave", clearArcs);
+
   /* ---------- 跟随阅读位置 ---------- */
   function syncCurrent(force) {
     if (PR.side !== "map") return;
@@ -228,13 +313,15 @@
     if (act === "skim") PR.toggleSkim();
     if (act === "gen") PR.gistRun("missing");
     if (act === "structure") PR.gistRun("structure");
+    if (act === "relations") PR.gistRun("relations");
     if (act === "stop") PR.gistStop();
     if (act === "more") {
       const can = PR.canAsk() && !PR.gistJob;
       PR.menu(b, [
         { label: "补全主旨（只写没写的和过时的）", icon: "sparkle", disabled: !can, fn: () => PR.gistRun("missing") },
         { label: "全部重新生成（我改过的保留）", icon: "redo", disabled: !can || !PR.hasGists(), fn: () => PR.confirm({ title: "全部重新生成？", body: "会把整篇再读一遍、再花一遍 token；你改过的主旨保留。", ok: "重新生成" }).then((ok) => ok && PR.gistRun("all")) },
-        { label: "重新提炼故事线和论点", icon: "redo", disabled: !can || !PR.hasGists(), fn: () => PR.gistRun("structure") },
+        { label: "重新提炼故事线、论点和图表关系", icon: "redo", disabled: !can || !PR.hasGists(), fn: () => PR.gistRun("structure") },
+        { label: "只重新整理图表关系", icon: "redo", disabled: !can || !PR.hasGists(), fn: () => PR.gistRun("relations") },
         "-",
         { label: (PR.prefs.gist !== false ? "✓ " : "") + "正文旁边显示主旨", icon: "panel", fn: () => { PR.setPref("gist", PR.prefs.gist === false, true); PR.renderGists(); } },
         { label: "导出脉络（Markdown）", icon: "download", disabled: !PR.hasGists(), fn: exportMd },

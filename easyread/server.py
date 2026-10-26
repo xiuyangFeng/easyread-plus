@@ -334,12 +334,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, app.jobs.submit_small("answer", ws.id, note=body["note"]))
             if action == "retranslate":
                 return self._json(200, app.jobs.submit_small("retranslate", ws.id, key=body["key"], hint=body.get("hint", "")))
-            if action == "gist":  # 生成段落主旨与脉络：{mode: missing|all|block|structure, block} 或 {cancel: true}
+            if action == "gist":  # 生成段落主旨与脉络：{mode: missing|all|block|structure|relations, block} 或 {cancel: true}
                 if body.get("cancel"):
                     app.jobs.cancel_gist(ws.id)
                     return self._json(200, {"ok": True})
                 mode = body.get("mode") or "missing"
-                if mode not in ("missing", "all", "block", "structure"):
+                if mode not in ("missing", "all", "block", "structure", "relations"):
                     raise ValueError("mode 不对")
                 if mode == "block" and not body.get("block"):
                     raise ValueError("缺少 block")

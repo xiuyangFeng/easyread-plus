@@ -157,9 +157,11 @@ class Jobs:
                 job.update(state="running", done=done, total=total, message=message)
             job.update(state="running", message="准备中")
             res = gist.run(ws, cfg, job["mode"], cancel, report, block=job.get("block"))
-            msg = "完成" if job["mode"] == "structure" else f"写好 {res['blocks']} 段主旨" if res["blocks"] else "已是最新"
+            msg = "完成" if job["mode"] in ("structure", "relations") else f"写好 {res['blocks']} 段主旨" if res["blocks"] else "已是最新"
             if res["failed"]:
                 msg += f"，{res['failed']} 批没成功（可以再点一次补上）"
+            if res.get("relations_error"):
+                msg += "；图表关系没整理出来（可以在“图表”页再试）"
             job.update(state="done", message=msg)
         except Cancelled:
             job.update(state="error", message="已停止，写好的部分保留")

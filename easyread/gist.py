@@ -9,6 +9,9 @@
   sections[标题 id] = {gist}
   story            = 全文故事线（两三句）
   claims           = [{id, claim, kind, support: [{id, how}], weak}]
+  floats[图表 id]   = {q, look}      这张图 / 表回答什么问题、看的时候先看哪里比什么
+  links            = [{from, to, rel, note}]      图表之间、结果段落之间的关系（对照、递进、推广……）
+  chains           = [{id, title, steps: [{id, note}], conclusion}]   结果链：从哪段结果经过哪些图表推出什么
 """
 from __future__ import annotations
 
@@ -24,6 +27,7 @@ from .store import empty_gist as empty  # noqa: F401  页面和测试用 gist.em
 ROLES = ["概述", "背景", "问题", "思路", "方法", "设定", "结果", "对比", "解释", "局限", "结论"]
 LINKS = ["开启", "递进", "转折", "举例", "证据", "细化", "并列", "总结"]
 KINDS = ["主结论", "方法主张", "次要结论"]
+RELS = ["对照", "递进", "推广", "细化", "互证", "补充", "反差"]
 CHUNK_CHARS = 5000   # 一次交给模型的译文字数上限（同一节太长就切开，后一段带上前一段最后的主旨）
 MIN_CHARS = 24       # 太短的段（公式后的“其中 …”半句）不写主旨
 # 文末的事务性章节（致谢、各种声明、作者贡献、数据可用性、资助）不属于论证，不送给模型。页面 mappanel.js 里有同一条规则
@@ -77,8 +81,19 @@ def outline(ws: Workspace) -> dict:
             cur = {"id": "_front", "title": "摘要" if b.get("role") == "abstract" else "开头", "paras": []}
             sections.append(cur)
         cur["paras"].append({"id": b["id"], "text": text, "sub": sub, "h": text_hash(text), "abstract": b.get("role") == "abstract"})
-    floats = [{"id": b["id"], "label": (b.get("caption_zh") or "")[:80]} for b in paper.get("blocks", [])
-              if b.get("type") in ("figure", "table") and b.get("caption_zh")]
+    floats = [{"id": b["id"], "kind": "图" if b["type"] == "figure" else "表", "num": str(b.get("num") or ""),
+               "label": (b.get("caption_zh") or "")[:80], "caption": (b.get("caption_zh") or "")[:160]}
+              for b in paper.get("blocks", []) if b.get("type") in ("figure", "table") and b.get("caption_zh")]
+    # 每段提到了哪些图表（和页面把“图 7”“表 2”变成链接的规则一样）
+    by_num = {(f["kind"], f["num"]): f["id"] for f in floats if f["num"]}
+    for sec in sections:
+        for p in sec["paras"]:
+            refs = []
+            for kind, num in re.findall(r"(图|表)\s*(\d+)", p["text"]):
+                fid = by_num.get((kind, num))
+                if fid and fid not in refs:
+                    refs.append(fid)
+            p["refs"] = refs
     meta = paper.get("meta", {})
     return {"title": meta.get("title_zh") or meta.get("title_en") or "", "sections": [s for s in sections if s["paras"]], "floats": floats}
 
@@ -139,6 +154,73 @@ def _prompt_structure(o: dict, data: dict) -> str:
     )
 
 
+def _prompt_relations(o: dict, data: dict) -> str:
+    gs = data["blocks"]
+    mentioned: dict[str, list[str]] = {}
+    lines = []
+    for sec in o["sections"]:
+        for p in sec["paras"]:
+            for fid in p.get("refs", []):
+                mentioned.setdefault(fid, []).append(p["id"])
+            g = gs.get(p["id"])
+            if g and (g.get("role") in ("结果", "对比", "解释", "结论", "局限") or p.get("refs")):
+                refs = "、".join(f["kind"] + f["num"] for f in o["floats"] if f["id"] in p.get("refs", []))
+                lines.append(f"[{p['id']}]（{sec['title'][:12]}）{g.get('role', '')}｜{g.get('gist', '')}" + (f"　提到：{refs}" if refs else ""))
+    floats = "\n".join(f"[{f['id']}] {f['caption']}" + (f"　被这些段提到：{', '.join(mentioned[f['id']][:6])}" if f["id"] in mentioned else "")
+                       for f in o["floats"]) or "（无）"
+    return (
+        f"下面是论文《{o['title']}》的图表和与结果相关的段落（方括号里是 id）。\n\n图表：\n{floats}\n\n"
+        "结果相关的段落（角色｜主旨）：\n" + ("\n".join(lines) or "（无）") + "\n\n"
+        "请帮读者理清“图与图、结果与结果之间”的逻辑：\n"
+        "- floats：每张图表一条。q 不超过 30 字，说这张图 / 表回答什么问题；look 不超过 50 字，告诉读者看的时候先看哪里、比什么、结论是什么。\n"
+        f"- links：图表之间、结果段落之间值得注意的关系，6–20 条。rel 只能是：{'、'.join(RELS)}。"
+        "（对照：同一设置下比两个条件；递进：后者在前者基础上更进一步；推广：换数据集 / 场景验证；细化：放大局部或拆开看；互证：不同方式得出同一结论；补充：补充信息；反差：结论不一致或有例外。）"
+        "note 不超过 30 字，说清楚两者怎么联系。from 在前、to 在后，按论文顺序。\n"
+        "- chains：2–4 条结果链，每条是论文用来证明一件事的证据顺序。title 不超过 16 字；steps 按顺序列出 3–7 步，"
+        "把结果段落和它所依据的图表交替串起来（比如：段落 → 图 → 表 → 段落），有图表的链每条至少包含一张图或表；每步 note 不超过 20 字；"
+        "conclusion 不超过 40 字，说这条链最后证明了什么。\n"
+        "id 只能用上面出现过的。只依据给出的内容，不要编造。\n\n"
+        '只输出 JSON：{"floats": [{"id": "", "q": "", "look": ""}], "links": [{"from": "", "to": "", "rel": "", "note": ""}], '
+        '"chains": [{"title": "", "steps": [{"id": "", "note": ""}], "conclusion": ""}]}'
+    )
+
+
+def relations(ws: Workspace, cfg: dict, cancel) -> None:
+    """图表之间、结果之间的关系和结果链。需要先有段落主旨。"""
+    o = outline(ws)
+    data = load(ws)
+    if not data["blocks"]:
+        raise engines.EngineError("还没有段落主旨，先生成主旨")
+    res = engines.parse_json(engines.run(cfg, _prompt_relations(o, data), ws.root, None, cancel))
+    if not isinstance(res, dict):
+        raise engines.EngineError("模型没有给出图表关系")
+    float_ids = {f["id"] for f in o["floats"]}
+    ok_ids = float_ids | {p["id"] for s in o["sections"] for p in s["paras"]}
+    floats = {}
+    for f in res.get("floats") or []:
+        fid = str((f or {}).get("id"))
+        if fid in float_ids and (f.get("q") or f.get("look")):
+            floats[fid] = {"q": str(f.get("q") or "").strip()[:60], "look": str(f.get("look") or "").strip()[:100]}
+    links, seen = [], set()
+    for x in res.get("links") or []:
+        a, b, rel = str((x or {}).get("from")), str((x or {}).get("to")), str((x or {}).get("rel") or "").strip()
+        if a in ok_ids and b in ok_ids and a != b and (a, b) not in seen:
+            seen.add((a, b))
+            links.append({"from": a, "to": b, "rel": rel if rel in RELS else "补充", "note": str(x.get("note") or "").strip()[:60]})
+    chains = []
+    for i, c in enumerate(res.get("chains") or []):
+        steps = [{"id": str(st.get("id")), "note": str(st.get("note") or "").strip()[:40]}
+                 for st in (c or {}).get("steps") or [] if isinstance(st, dict) and str(st.get("id")) in ok_ids]
+        if len(steps) >= 2:
+            chains.append({"id": f"k{i + 1}", "title": str(c.get("title") or "结果链").strip()[:30], "steps": steps,
+                           "conclusion": str(c.get("conclusion") or "").strip()[:80]})
+
+    def apply(d):
+        d.update(floats=floats, links=links, chains=chains, relations_at=now_iso())
+        return d
+    _update(ws, apply)
+
+
 # ---------- 写回 ----------
 def _clean_block(x: dict) -> dict | None:
     gist = str(x.get("gist") or "").strip()
@@ -186,7 +268,8 @@ def load(ws: Workspace) -> dict:
 
 # ---------- 任务 ----------
 def run(ws: Workspace, cfg: dict, mode: str, cancel: threading.Event, report, block: str | None = None) -> dict:
-    """mode：missing 只补没写的和过时的；all 全部重写（读者改的保留）；block 只重写一段；structure 只重新提炼故事线和论点。
+    """mode：missing 只补没写的和过时的；all 全部重写（读者改的保留）；block 只重写一段；
+    structure 只重新提炼故事线、论点和图表关系；relations 只重新整理图表关系。
     report(done, total, message)。返回 {"blocks": 写了几段, "failed": 几批失败}。"""
     o = outline(ws)
     if mode != "block":  # 不再写主旨的段（删掉了、变短了、归到事务性章节里了）：AI 写的清掉，读者改的留着
@@ -223,10 +306,15 @@ def run(ws: Workspace, cfg: dict, mode: str, cancel: threading.Event, report, bl
         if mode == "block" and not jobs:
             raise ValueError("这段太短或不是正文段落，不写主旨")
 
-    total = len(jobs) + (0 if mode == "block" else 1)
+    if mode == "relations":
+        report(0, 1, "整理图表和结果之间的关系")
+        relations(ws, cfg, cancel)
+        report(1, 1, "完成")
+        return {"blocks": 0, "failed": 0}
+    total = len(jobs) + (0 if mode == "block" else 2)
     done, failed, wrote, last_err = 0, 0, 0, ""
     lock = threading.Lock()
-    if not jobs and mode == "missing" and data.get("claims"):
+    if not jobs and mode == "missing" and data.get("claims") and "chains" in data:
         report(1, 1, "已是最新")
         return {"blocks": 0, "failed": 0}
     report(0, total, f"读第 1/{total} 批" if jobs else "提炼故事线和论点")
@@ -276,14 +364,23 @@ def run(ws: Workspace, cfg: dict, mode: str, cancel: threading.Event, report, bl
         if not wrote and failed:
             raise engines.EngineError(f"{failed} 批都没写成：{last_err[:300]}")
 
-    if mode != "block" and (wrote or mode in ("structure", "all") or not data.get("claims")):
+    rel_err = ""
+    if mode != "block" and (wrote or mode in ("structure", "all") or not data.get("claims") or "chains" not in data):
         if cancel.is_set():
             raise engines.Cancelled()
-        report(done, total, "提炼故事线和论点")
-        structure(ws, cfg, cancel)
+        if wrote or mode in ("structure", "all") or not data.get("claims"):
+            report(done, total, "提炼故事线和论点")
+            structure(ws, cfg, cancel)
+        done += 1
+        report(done, total, "整理图表和结果之间的关系")
+        try:  # 图表关系没整理出来不影响前面的主旨和论点
+            relations(ws, cfg, cancel)
+        except engines.EngineError as e:
+            rel_err = str(e)[:200]
+            log.warning("图表关系失败 %s：%s", ws.id, e)
         done += 1
         report(done, total, "完成")
-    return {"blocks": wrote, "failed": failed}
+    return {"blocks": wrote, "failed": failed, "relations_error": rel_err}
 
 
 def structure(ws: Workspace, cfg: dict, cancel) -> None:
