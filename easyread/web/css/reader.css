@@ -240,9 +240,9 @@ textarea.editor { display: block; width: 100%; resize: none; overflow: hidden; b
   .blk.notes-open > .inline-notes { display: block; }
 }
 @media (min-width: 1240px) {
-  body.side-open #margin, body.no-margin #margin { display: none; }
-  body.side-open .note-pin, body.no-margin .note-pin { display: inline-block; }
-  body.side-open .blk.notes-open > .inline-notes, body.no-margin .blk.notes-open > .inline-notes { display: block; }
+  body.side-open #margin, body.pvl-open #margin, body.no-margin #margin { display: none; }
+  body.side-open .note-pin, body.pvl-open .note-pin, body.no-margin .note-pin { display: inline-block; }
+  body.side-open .blk.notes-open > .inline-notes, body.pvl-open .blk.notes-open > .inline-notes, body.no-margin .blk.notes-open > .inline-notes { display: block; }
 }
 @media (max-width: 760px) {
   :root { --gutter: 18px; }

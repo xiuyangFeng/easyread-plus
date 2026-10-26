@@ -172,7 +172,7 @@
   PR.$('[data-act="drawer"]').innerHTML = PR.icon("menu");
   PR.$('[data-act="map"]').innerHTML = PR.icon("map", "sm") + "<span>脉络</span>";
   PR.$('[data-act="figs"]').innerHTML = PR.icon("image", "sm") + "<span>看图</span>";
-  PR.$('[data-act="pages"]').innerHTML = PR.icon("page", "sm") + "<span>原页</span>";
+  PR.$('[data-act="pages"]').innerHTML = PR.icon("page", "sm") + "<span>原文</span>";
   PR.$('[data-act="pages"]').addEventListener("mouseenter", () => PR.preloadPage && PR.preloadPage());  // 鼠标移过去就开始加载
   PR.$('[data-act="notes"]').innerHTML = PR.icon("note", "sm") + "<span>笔记</span>";
   PR.$('[data-act="chat"]').innerHTML = PR.icon("sparkle", "sm") + "<span>问 AI</span>";
@@ -187,7 +187,7 @@
     if (PR.renderGists) PR.renderGists();
     if (!PR.feature("figs") && PR.side === "figs") PR.openSide(null);
     set('[data-act="chat"]', PR.feature("chat") && PR.chatView());
-    if (!PR.feature("pages") && PR.side === "pages") PR.openSide(null);
+    if (!PR.feature("pages") && PR.pagesOpen && PR.pagesOpen()) PR.togglePages(false);
     if (!PR.feature("chat") && PR.side === "chat") PR.openSide(null);
   };
   PR.on("ui-changed", () => { PR.applyFeatures(); PR.hideBlockbar && PR.hideBlockbar(); PR.renderMargin && PR.renderMargin(); });

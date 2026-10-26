@@ -192,3 +192,7 @@ body.mp-open #mappanel { transform: none; }
 .arc-row.lone::before { background: var(--rule-2); }
 .arc-row:hover, .arc-row.hl, .arc-row.on-read { background: var(--accent-soft); color: var(--ink); }
 .arc-row .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.45; }
+
+/* 面板窄的时候（三栏都开、窗口不宽）：头部整行换行，字不竖着挤 */
+.mp-head, .fp-head { flex-wrap: wrap; height: auto; min-height: 46px; row-gap: 4px; padding-top: 5px; padding-bottom: 5px; }
+.mp-title, .fp-title, .pv-follow, .mp-head .seg button, .pv-views button { white-space: nowrap; }

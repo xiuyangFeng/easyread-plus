@@ -73,7 +73,8 @@
     const list = PR.$$("#paper > .blk > .gist");
     if (!list.length) return;
     const skim = body.classList.contains("gist-skim");
-    const avail = paper.getBoundingClientRect().left - 28;
+    const leftEdge = body.classList.contains("pvl-open") ? PR.$("#pageview").getBoundingClientRect().right : 0;  // 原文停在左边时，留白从它右边算
+    const avail = paper.getBoundingClientRect().left - leftEdge - 28;
     const side = !skim && avail >= 150;
     body.classList.toggle("gist-side", side);
     list.forEach((g) => { g.style.top = ""; });

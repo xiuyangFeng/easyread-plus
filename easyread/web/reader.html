@@ -32,7 +32,7 @@
   </div>
   <button class="btn" data-act="map" title="论文脉络：段落主旨、论证结构、核心论点（G）"></button>
   <button class="btn" data-act="figs" title="随文看图：读到“图 N”时在右侧显示（F）"></button>
-  <button class="btn" data-act="pages" title="原文页，跟随阅读位置（O）"></button>
+  <button class="btn" data-act="pages" title="原文：PDF 原页或英文原文，跟随阅读位置；可停靠到左侧（O）"></button>
   <button class="btn" data-act="notes" title="笔记面板（M）"></button>
   <button class="btn" data-act="chat" title="边读边问 AI（A）"></button>
   <button class="btn" data-act="settings" title="字号、版心、主题（=、- 调字号）">Aa</button>
@@ -58,6 +58,7 @@
 
 <section id="pageview" class="side-panel" aria-label="原文页">
   <div class="pv-head">
+    <div class="seg pv-views" role="group" aria-label="原文看法"><button data-pvv="page" title="PDF 原页，框出当前段">原页</button><button data-pvv="en" title="排好版的英文原文，高亮当前段">英文</button></div>
     <button class="btn icon" data-pv="prev" title="上一页（[）">‹</button>
     <span class="pv-label"></span>
     <button class="btn icon" data-pv="next" title="下一页（]）">›</button>
@@ -65,9 +66,11 @@
     <label class="pv-follow" title="随阅读位置翻页"><input type="checkbox" checked> 跟随</label>
     <button class="btn sm" data-pv="zoom">放大</button>
     <a class="btn sm" data-pv="pdf" target="_blank" rel="noopener">PDF</a>
+    <button class="btn icon" data-pv="dock" title="停靠到左侧">⇤</button>
     <button class="btn icon" data-pv="close" title="关闭（O）">×</button>
   </div>
   <div class="pv-scroll"><div class="pv-page"><img alt=""><div class="pv-hl"></div></div></div>
+  <div class="pv-en" lang="en"></div>
 </section>
 
 <section id="mappanel" class="side-panel" aria-label="论文脉络"></section>

@@ -69,7 +69,7 @@
   }
 
   PR.marginWide = () => window.matchMedia("(min-width: 1240px)").matches &&
-    !document.body.classList.contains("side-open") && !document.body.classList.contains("no-margin");
+    !document.body.classList.contains("side-open") && !document.body.classList.contains("pvl-open") && !document.body.classList.contains("no-margin");
 
   PR.renderMargin = function () {
     const groups = collect();
