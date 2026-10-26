@@ -12,7 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, paperdata, pdfwork, prefs
+from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, library, paperdata, pdfwork, prefs
 from .log import log, setup as setup_log, tail
 from .jobs import Jobs
 from .library import Library
@@ -70,7 +70,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Content-Disposition", f"attachment; filename=\"export.html\"; filename*=UTF-8''{quote(filename)}")
+        ext = Path(filename).suffix or ".html"
+        self.send_header("Content-Disposition", f"attachment; filename=\"export{ext}\"; filename*=UTF-8''{quote(filename)}")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
@@ -173,6 +174,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, chat_models.listing(config.load()))
         if path == "/api/log":
             return self._json(200, {"text": tail(config.LOG_PATH, 200), "path": str(config.LOG_PATH)})
+        if path == "/api/search":
+            q = parse_qs(url.query).get("q", [""])[0]
+            return self._json(200, {"results": library.search(lib.root, q)})
+        if path == "/api/backup":
+            import os
+            import tempfile
+            from datetime import datetime as _dt
+            fd, tmp = tempfile.mkstemp(suffix=".zip")
+            os.close(fd)
+            library.backup(lib.root, Path(tmp))
+            name = f"easyread-backup-{_dt.now():%Y%m%d-%H%M%S}.zip"
+            body = Path(tmp).read_bytes()
+            Path(tmp).unlink(missing_ok=True)
+            return self._download(body, name, "application/zip")
         if path == "/api/jobs":
             return self._json(200, {"jobs": app.jobs.small_status(parse_qs(url.query).get("pid", [None])[0])})
         if path.startswith("/api/p/"):
@@ -184,6 +199,7 @@ class Handler(BaseHTTPRequestHandler):
             if action == "state":
                 ws.patch_item({"last_opened": now_iso()})
                 _warm(ws.root)
+                pdfwork.fill_figure_srcs(ws)  # 阅读页内联插图：第一次会裁图，之后是空操作
                 return self._json(200, {
                     **{n: ws.load(n) for n in ("paper", "discussion", "reader", "layout", "item", "job")},
                     "versions": ws.versions(), "token": app.token, "id": ws.id,
@@ -194,7 +210,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {"threads": chat_store.threads(ws), **chat_models.listing(config.load())})
             if action == "log":
                 return self._json(200, {"text": tail(ws.root / "job.log", 300)})
-            if action == "export":
+            if action in ("export", "export-pdf"):
+                q = {k: v[0] for k, v in parse_qs(url.query).items()}
+                if action == "export-pdf" or q.get("format") == "pdf":
+                    from .build import build_pdf
+                    out = build_pdf(ws, mode=q.get("mode", "zh"), notes=q.get("notes") in ("1", "true"))
+                    return self._download(out.read_bytes(), out.name, "application/pdf")
                 from .build import build
                 out = build(ws)
                 return self._download(out.read_bytes(), out.name, "text/html; charset=utf-8")

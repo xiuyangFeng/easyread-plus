@@ -10,19 +10,22 @@
     ["edit", "改译文", true, "段落操作条里的“改译文”（也可以双击段落）"],
     ["en", "展开英文原文", true, "段落操作条里的“原文”"],
     ["pages", "原页面板", true, "右上角“原页”，对照 PDF 原页"],
+    ["figs", "随文看图", true, "读到提到“图 N”的段落时，右侧自动显示这些图（没开原页、笔记、问 AI 时）；右上角“看图”手动开关"],
     ["retranslate", "让模型重译一段", false, "会花 token，容易误点，默认关；开了之后在段落的“⋯”菜单里"],
   ];
   /* [id, 名字, 默认键, 分组, 依赖的功能] */
   PR.KEY_ACTIONS = [
     ["next", "下一段", "j", "阅读"], ["prev", "上一段", "k", "阅读"],
-    ["mode", "译文 / 对照原文", "b", "阅读"], ["toc", "目录", "t", "阅读"],
+    ["mode", "译文 / 对照原文", "b", "阅读"], ["toc", "目录", "t", "阅读"], ["search", "搜索译文", "/", "阅读"],
     ["fontUp", "字号变大", "=", "阅读"], ["fontDown", "字号变小", "-", "阅读"], ["fontReset", "恢复默认字号", "0", "阅读"],
+    ["autoscroll", "自动滚动 开/关", "w", "阅读"],
     ["notes", "笔记面板", "m", "面板"], ["chat", "问 AI（带当前段）", "a", "面板", "chat"],
-    ["pages", "原页面板", "o", "面板", "pages"], ["pagePrev", "原页上一页", "[", "面板", "pages"], ["pageNext", "原页下一页", "]", "面板", "pages"],
+    ["figs", "随文看图面板", "f", "面板", "figs"], ["pages", "原页面板", "o", "面板", "pages"], ["pagePrev", "原页上一页", "[", "面板", "pages"], ["pageNext", "原页下一页", "]", "面板", "pages"],
     ["note", "给当前段写笔记", "n", "当前段"], ["question", "给当前段提问", "q", "当前段"],
     ["en", "展开这段英文", "y", "当前段", "en"], ["edit", "改译文", "e", "当前段", "edit"],
     ["redo", "让模型重译这段", "", "当前段", "retranslate"],
     ["page", "看这段的原页", "p", "当前段", "pages"], ["copy", "复制这段译文", "c", "当前段"],
+    ["tts", "朗读译文 开/关", "v", "朗读"],
   ];
   const DEF_KEYS = Object.fromEntries(PR.KEY_ACTIONS.map(([id, , k]) => [id, k]));
   const DEF_FEATURES = Object.fromEntries(PR.FEATURES.map(([id, , on]) => [id, on]));

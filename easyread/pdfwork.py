@@ -6,26 +6,34 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import unicodedata
 from pathlib import Path
 
+from .log import log
 from .store import write_json_atomic
+
+_pdfium_lock = threading.Lock()
 
 
 def render_pages(pdf: Path, out_dir: Path, scale: float = 2.4, quality: int = 84) -> list[dict]:
     import pypdfium2 as pdfium
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    doc = pdfium.PdfDocument(str(pdf))
-    pages = []
-    for i in range(len(doc)):
-        page = doc[i]
-        w, h = page.get_size()
-        img = page.render(scale=scale).to_pil().convert("RGB")
-        name = f"page-{i + 1:03d}.webp"
-        img.save(out_dir / name, "WEBP", quality=quality, method=5)
-        pages.append({"n": i + 1, "w": round(w, 2), "h": round(h, 2), "img": f"pages/{name}"})
-    return pages
+    with _pdfium_lock:
+        doc = pdfium.PdfDocument(str(pdf))
+        try:
+            pages = []
+            for i in range(len(doc)):
+                page = doc[i]
+                w, h = page.get_size()
+                img = page.render(scale=scale).to_pil().convert("RGB")
+                name = f"page-{i + 1:03d}.webp"
+                img.save(out_dir / name, "WEBP", quality=quality, method=5)
+                pages.append({"n": i + 1, "w": round(w, 2), "h": round(h, 2), "img": f"pages/{name}"})
+            return pages
+        finally:
+            doc.close()
 
 
 def extract_text(pdf: Path, out_dir: Path) -> int:
@@ -34,10 +42,14 @@ def extract_text(pdf: Path, out_dir: Path) -> int:
     import pypdfium2 as pdfium
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    doc = pdfium.PdfDocument(str(pdf))
-    for i in range(len(doc)):
-        tp = doc[i].get_textpage()
-        (out_dir / f"page-{i + 1:03d}.txt").write_text(tp.get_text_range(), encoding="utf-8")
+    with _pdfium_lock:
+        doc = pdfium.PdfDocument(str(pdf))
+        try:
+            for i in range(len(doc)):
+                tp = doc[i].get_textpage()
+                (out_dir / f"page-{i + 1:03d}.txt").write_text(tp.get_text_range(), encoding="utf-8")
+        finally:
+            doc.close()
     with pdfplumber.open(str(pdf)) as plumb:
         for i, page in enumerate(plumb.pages):
             W, H = float(page.width), float(page.height)
@@ -53,8 +65,12 @@ def crop(root: Path, page: int, box: list[float], out_name: str, scale: float = 
     """box 是按页宽高归一化的 [x0, y0, x1, y1]；输出到 figures/，返回相对路径。"""
     import pypdfium2 as pdfium
 
-    doc = pdfium.PdfDocument(str(root / "source.pdf"))
-    img = doc[page - 1].render(scale=scale).to_pil().convert("RGB")
+    with _pdfium_lock:
+        doc = pdfium.PdfDocument(str(root / "source.pdf"))
+        try:
+            img = doc[page - 1].render(scale=scale).to_pil().convert("RGB")
+        finally:
+            doc.close()
     W, H = img.size
     x0, y0, x1, y1 = box
     part = img.crop((int(x0 * W), int(y0 * H), int(x1 * W), int(y1 * H)))
@@ -199,8 +215,13 @@ def engine_image(root: Path, n: int) -> Path:
     out = root / "extract" / f"page-{n:03d}.jpg"
     if not out.exists():
         import pypdfium2 as pdfium
-        doc = pdfium.PdfDocument(str(root / "source.pdf"))
-        doc[n - 1].render(scale=2.0).to_pil().convert("RGB").save(out, "JPEG", quality=82)
+        with _pdfium_lock:
+            if not out.exists():
+                doc = pdfium.PdfDocument(str(root / "source.pdf"))
+                try:
+                    doc[n - 1].render(scale=2.0).to_pil().convert("RGB").save(out, "JPEG", quality=82)
+                finally:
+                    doc.close()
     return out
 
 
@@ -236,3 +257,137 @@ def prepare(root: Path) -> list[dict]:
     pages = render_pages(root / "source.pdf", root / "pages")
     extract_text(root / "source.pdf", root / "extract")
     return pages
+
+
+def crop_figures(root: Path, paper: dict | None = None) -> dict[str, str]:
+    """给没有 src 的 figure 块自动从原页裁出插图（去掉英文题注与四周白边），缓存在 figures/<id>.webp。"""
+    if paper is None:
+        pfile = root / "paper.json"
+        if not pfile.exists():
+            return {}
+        paper = json.loads(pfile.read_text(encoding="utf-8"))
+    blocks = paper.get("blocks", [])
+    figs = [b for b in blocks if b.get("type") == "figure" and b.get("id")]
+    if not figs:
+        return {}
+
+    out: dict[str, str] = {}
+    need: list[dict] = []
+    for b in figs:
+        bid = b["id"]
+        rel = b.get("src") or f"figures/{bid}.webp"
+        if (root / rel).is_file():
+            out[bid] = rel
+        else:
+            need.append(b)
+    if not need:
+        return out
+
+    from PIL import Image, ImageChops
+
+    extract_dir = root / "extract"
+    streams: dict[int, tuple] = {}
+    raw_boxes: dict[str, tuple[int, list[float]]] = {}
+    cursor: dict[int, int] = {}
+    for b in blocks:
+        bid, page = b.get("id"), b.get("page")
+        if not bid or not page:
+            continue
+        head, tail = _anchors(block_english(b))
+        if not head:
+            continue
+        for pn in (page, page + 1):
+            if pn not in streams:
+                streams[pn] = _page_stream(extract_dir, pn)
+            st = streams[pn]
+            if not st:
+                continue
+            text, idx, chars = st
+            a = text.find(head, cursor.get(pn, 0) if pn == page else 0)
+            if a < 0:
+                a = text.find(head)
+            if a < 0:
+                continue
+            t_pos = text.find(tail, a) if tail else -1
+            end = t_pos + len(tail) - 1 if t_pos >= 0 else min(a + len(_norm(block_english(b))), len(idx) - 1)
+            raw_boxes[bid] = (pn, _box(chars, idx, a, end))
+            cursor[pn] = end
+            break
+
+    (root / "figures").mkdir(exist_ok=True)
+    for b in need:
+        bid = b["id"]
+        if bid not in raw_boxes:
+            continue
+        page, cbox = raw_boxes[bid]
+        cx0, cy0, cx1, cy1 = cbox
+        if cx1 <= 0.51:
+            x0, x1 = max(0.04, cx0 - 0.01), min(0.495, cx1 + 0.01)
+        elif cx0 >= 0.49:
+            x0, x1 = max(0.505, cx0 - 0.01), min(0.96, cx1 + 0.01)
+        else:
+            x0, x1 = max(0.04, min(cx0, 0.10) - 0.01), min(0.96, max(cx1, 0.90) + 0.01)
+
+        if b.get("caption_pos", "below") == "below":
+            above = [
+                ob[3] for oid, (op, ob) in raw_boxes.items()
+                if oid != bid and op == page and ob[3] <= cy0 + 0.008
+                and min(x1, ob[2]) - max(x0, ob[0]) > 0.04
+            ]
+            y0 = max(above) + 0.005 if above else 0.052
+            y1 = cy0 - 0.005
+        else:
+            below = [
+                ob[1] for oid, (op, ob) in raw_boxes.items()
+                if oid != bid and op == page and ob[1] >= cy1 - 0.008
+                and min(x1, ob[2]) - max(x0, ob[0]) > 0.04
+            ]
+            y0 = cy1 + 0.005
+            y1 = min(below) - 0.005 if below else 0.92
+
+        if y1 - y0 < 0.04:
+            continue
+        page_img = root / "pages" / f"page-{page:03d}.webp"
+        if not page_img.is_file():
+            continue
+        try:
+            with Image.open(page_img) as im:
+                W, H = im.size
+                part = im.crop((int(x0 * W), int(y0 * H), int(x1 * W), int(y1 * H))).convert("RGB")
+                bg = Image.new("RGB", part.size, (255, 255, 255))
+                diff = ImageChops.difference(part, bg).convert("L").point(lambda p: 255 if p > 15 else 0)
+                bbox = diff.getbbox()
+                if not bbox:
+                    continue
+                pad = 10
+                bbox = (max(0, bbox[0] - pad), max(0, bbox[1] - pad), min(part.width, bbox[2] + pad), min(part.height, bbox[3] + pad))
+                part = part.crop(bbox)
+                if part.width < 40 or part.height < 30:
+                    continue
+                rel = f"figures/{bid}.webp"
+                part.save(root / rel, "WEBP", quality=90)
+                out[bid] = rel
+        except Exception:  # noqa: BLE001
+            continue
+    return out
+
+
+def fill_figure_srcs(ws) -> None:
+    """给 paper.json 里没有 src 的 figure 块补上裁好的插图并落盘，阅读页就能内联看图。
+    打开论文和翻译结束时各调一次；图都缓存过时只是读一遍 paper.json，失败不影响阅读。"""
+    try:
+        paper = ws.load("paper")
+        if not paper or not any(b.get("type") == "figure" and not b.get("src") for b in paper.get("blocks", [])):
+            return
+        fig_map = crop_figures(ws.root, paper)
+        if not fig_map:
+            return
+
+        def apply(p):
+            for b in p.get("blocks", []):
+                if b.get("type") == "figure" and not b.get("src") and fig_map.get(b.get("id")):
+                    b["src"] = fig_map[b["id"]]
+        ws.update("paper", apply)
+    except Exception:  # noqa: BLE001
+        log.exception("补齐插图失败 %s", getattr(ws, "id", ws))
+

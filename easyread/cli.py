@@ -9,7 +9,7 @@
   easyread discuss ID --from 讨论.json | --delete 讨论ID
   easyread check ID                       检查块、引用、TeX
   easyread locate ID                      重新计算原页高亮位置
-  easyread export ID                      导出单文件离线 HTML
+  easyread export ID [--pdf] [--bi] [--notes] [--out 文件]  导出离线 HTML 或中文 PDF
   easyread demo ID --out docs/demo        做成网站上的在线演示（图片另存、带问 AI 记录）
   easyread merge ID --from 导出.json       把离线版页面导出的修改并回文献库
   easyread migrate 旧的“xxx-共读”目录      把旧版技能生成的目录搬进文献库
@@ -104,12 +104,14 @@ def cmd_translate(a):
         urllib.request.urlopen(req)
         out("已交给服务排队翻译，进度在文献库页面上看。")
         return
+    from .pdfwork import fill_figure_srcs
     from .translate import translate_pages
     cfg = config.load()
     paper = ws.load("paper")
     done = set(paper.get("translation", {}).get("done_pages", []))
     pages = pages or [p["n"] for p in paper["meta"]["pages"] if p["n"] not in done]
     failed = translate_pages(ws, cfg, pages, threading.Event(), lambda d, t, m: out(f"[{d}/{t}] {m}"))
+    fill_figure_srcs(ws)
     if failed:
         out(f"没译成功的页：{sorted(failed)}，原因见 {ws.root / 'job.log'}")
 
@@ -179,8 +181,14 @@ def cmd_locate(a):
 
 
 def cmd_export(a):
-    from .build import build
-    out(str(build(find(a.id))))
+    from .build import build, build_pdf
+    ws = find(a.id)
+    out_path = Path(a.out) if getattr(a, "out", None) else None
+    is_pdf = getattr(a, "pdf", False) or getattr(a, "bi", False) or getattr(a, "notes", False) or bool(out_path and out_path.suffix.lower() == ".pdf")
+    if is_pdf:
+        out(str(build_pdf(ws, out=out_path, mode="bi" if getattr(a, "bi", False) else "zh", notes=bool(getattr(a, "notes", False)))))
+    else:
+        out(str(build(ws, out=out_path)))
 
 
 def cmd_demo(a):
@@ -212,8 +220,11 @@ def main(argv=None):
     p = sub.add_parser("list"); p.set_defaults(fn=cmd_list)
     p = sub.add_parser("import"); p.add_argument("source"); p.add_argument("--no-translate", action="store_true"); p.set_defaults(fn=cmd_import)
     p = sub.add_parser("translate"); p.add_argument("id"); p.add_argument("--pages"); p.set_defaults(fn=cmd_translate)
-    for name, fn in (("status", cmd_status), ("check", cmd_check), ("locate", cmd_locate), ("export", cmd_export)):
+    for name, fn in (("status", cmd_status), ("check", cmd_check), ("locate", cmd_locate)):
         p = sub.add_parser(name); p.add_argument("id"); p.set_defaults(fn=fn)
+    p = sub.add_parser("export"); p.add_argument("id"); p.add_argument("--pdf", action="store_true", help="导出中文重排 PDF")
+    p.add_argument("--bi", action="store_true", help="PDF 采用中英双语对照"); p.add_argument("--notes", action="store_true", help="PDF 包含笔记、划线与 AI 批注")
+    p.add_argument("--out", "-o", help="输出文件路径"); p.set_defaults(fn=cmd_export)
     p = sub.add_parser("blocks"); p.add_argument("id"); p.add_argument("--from", dest="from_file", required=True)
     p.add_argument("--done"); p.add_argument("--replace", action="store_true"); p.set_defaults(fn=cmd_blocks)
     p = sub.add_parser("discuss"); p.add_argument("id"); p.add_argument("--from", dest="from_file"); p.add_argument("--delete")

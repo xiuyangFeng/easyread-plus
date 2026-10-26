@@ -76,20 +76,18 @@
     PR.noteGroups = groups;
     const margin = PR.$("#margin");
     PR.$$(".note-pin, .inline-notes").forEach((n) => n.remove());
-    const wide = PR.marginWide();
+    const wide = PR.marginWide() && !S.pdf;
     margin.innerHTML = "";
     for (const [anchor, items] of Object.entries(groups)) {
       const host = document.getElementById("b-" + anchor);
       if (!host) continue;
       const html = items.map((it) => cardHtml(it)).join("");
       if (wide) margin.insertAdjacentHTML("beforeend", html);
-      else {
-        const mine = items.every((i) => i.src === "mine");
-        host.appendChild(PR.el("button", { class: "note-pin" + (mine ? " mine" : ""), title: "讨论与笔记", "data-t": "pin", text: String(items.length) }));
-        host.appendChild(PR.el("div", { class: "inline-notes" }, html));
-      }
+      const mine = items.every((i) => i.src === "mine");
+      if (!wide) host.appendChild(PR.el("button", { class: "note-pin" + (mine ? " mine" : ""), title: "讨论与笔记", "data-t": "pin", text: String(items.length) }));
+      host.appendChild(PR.el("div", { class: "inline-notes" }, html));
     }
-    PR.$$(".card").forEach(prepCard);
+    PR.$$("#margin .card, .blk.notes-open > .inline-notes .card").forEach(prepCard);
     if (wide) PR.layoutMargin();
     PR.emit("margin-rendered");
   };

@@ -6,7 +6,7 @@ import queue
 import threading
 import time
 
-from . import config, translate
+from . import config, pdfwork, translate
 from .engines import Cancelled, EngineError
 from .library import Library
 from .log import log
@@ -102,6 +102,7 @@ class Jobs:
 
         started = time.time()
         failed = translate.translate_pages(ws, cfg, pages, cancel, report)
+        pdfwork.fill_figure_srcs(ws)  # 译文落了盘，把插图裁出来内联；失败只记日志
         minutes = max(1, round((time.time() - started) / 60))
         if failed:
             first = next(iter(failed.values()))

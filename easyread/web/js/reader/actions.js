@@ -78,6 +78,7 @@
     items.push("-",
       { label: "复制译文", icon: "copy", kbd: PR.keyOf("copy"), fn: () => copyBlock(id, "zh") },
       { label: "复制英文原文", icon: "copy", fn: () => copyBlock(id, "en") },
+      ...(b && b.type === "math" && b.tex ? [{ label: "复制 LaTeX 源码", icon: "copy", fn: () => navigator.clipboard.writeText(b.tex).then(() => PR.toast("已复制 LaTeX 源码")) }] : []),
       // 贴进 Obsidian / Notion 是一条 Markdown 链接，点开（EasyRead 开着时）直接回到这一段
       { label: "复制段落链接（贴进笔记软件）", icon: "link", fn: () => {
         const sec = PR.sectionOf ? PR.sectionOf(id) : "";  // 用“论文 · 章节 · 页码”当链接文字，正文里可能有公式，不好截
@@ -169,6 +170,10 @@
     if (!a) return;
     e.preventDefault();
     PR.hidePopover();
+    if (a.dataset.kind === "fig" && PR.figShow) {  // 随文看图开着：在右侧看，不跳走
+      const blk = a.closest("#paper > .blk");
+      if (PR.figShow(PR.xindex.fig[a.dataset.key], blk && blk.dataset.id)) return;
+    }
     PR.jumpTo(a.classList.contains("cite") ? "ref-" + a.dataset.ref : "b-" + PR.xindex[a.dataset.kind][a.dataset.key]);
   });
   function refCard(a) {

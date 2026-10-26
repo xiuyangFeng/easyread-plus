@@ -6,7 +6,7 @@
   let pvPage = 1, pvBlock = null;
   const pages = () => (S.paper.meta || {}).pages || [];
 
-  /* 右侧面板开关：pages | notes | null */
+  /* 右侧面板开关：pages | notes | chat | figs | null */
   /* 面板先滑出来（只动面板，不卡），滑完再让正文让位、重排一次。
      长论文有几万个节点，正文宽度一变就要整页重排（两三百毫秒），放在点击的当下会让人觉得按钮反应慢。 */
   PR.side = null;
@@ -16,9 +16,12 @@
     body.classList.toggle("pv-open", name === "pages");
     body.classList.toggle("np-open", name === "notes");
     body.classList.toggle("ch-open", name === "chat");
+    body.classList.toggle("fp-open", name === "figs");
     PR.$('[data-act="chat"]').classList.toggle("on", name === "chat");
     PR.$('[data-act="pages"]').classList.toggle("on", name === "pages");
     PR.$('[data-act="notes"]').classList.toggle("on", name === "notes");
+    PR.$('[data-act="figs"]').classList.toggle("on", name === "figs");
+    PR.emit("side", name);
     clearTimeout(sideT);
     if (name) { const t = PR.$("#toast"); if (t) t.classList.remove("open"); }  // 提示条别挡住面板底部的输入框
     if (body.classList.contains("side-open") === !!name) return;  // 面板之间切换：正文宽度不变
@@ -31,6 +34,60 @@
       if (node) window.scrollBy(0, node.getBoundingClientRect().top - before);  // 重排后还停在刚才读的地方
     }), 300);
   };
+
+  /* 右侧面板宽度：拖面板左边缘调，记在本机，双击恢复默认。
+     拖的时候只动面板（--side-drag），松手才让正文跟着重排一次，长论文拖起来也不卡。 */
+  const root = document.documentElement;
+  const wideScreen = () => innerWidth >= 1180;  // 窄屏面板盖在正文上，不调
+  const clampW = (w) => Math.round(Math.max(320, Math.min(w, innerWidth - 520, innerWidth * 0.75)));
+  function applySideW() {
+    const w = PR.ls.get("easyread-side-w", 0);
+    if (w && wideScreen()) root.style.setProperty("--side-w", clampW(w) + "px");
+    else root.style.removeProperty("--side-w");
+  }
+  function relayout() {  // 正文宽度变了：重排后还停在刚才读的地方
+    const anchor = PR.readingBlock && PR.readingBlock();
+    const node = anchor && document.getElementById("b-" + anchor);
+    const before = node ? node.getBoundingClientRect().top : 0;
+    return () => {
+      PR.fitWide(); PR.renderMargin();
+      if (node) window.scrollBy(0, node.getBoundingClientRect().top - before);
+      if (PR.side === "pages") showPage(pvPage, pvBlock);  // 面板变宽了可能要换大一号的原页图
+      PR.emit("side-resized");
+    };
+  }
+  applySideW();
+  window.addEventListener("resize", PR.debounce(applySideW, 150));
+  const grip = PR.el("div", { id: "side-grip", title: "拖动调整右侧面板宽度（双击恢复默认）" });
+  document.body.appendChild(grip);
+  grip.addEventListener("mousedown", (e) => e.preventDefault());  // 别让拖动顺带选中正文
+  document.addEventListener("selectstart", (e) => { if (body.classList.contains("resizing")) e.preventDefault(); });
+  grip.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    grip.setPointerCapture(e.pointerId);
+    body.classList.add("resizing");
+    let w = 0;
+    const move = (ev) => { w = clampW(innerWidth - ev.clientX); root.style.setProperty("--side-drag", w + "px"); };
+    const up = () => {
+      grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up);
+      body.classList.remove("resizing");
+      root.style.removeProperty("--side-drag");
+      const sel = getSelection(); if (sel && !sel.isCollapsed && !PR.$("#selbar").contains(sel.anchorNode)) sel.removeAllRanges();
+      if (!w) return;
+      const done = relayout();
+      PR.ls.set("easyread-side-w", w);
+      applySideW();
+      requestAnimationFrame(done);
+    };
+    grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up);
+  });
+  grip.addEventListener("dblclick", () => {
+    const done = relayout();
+    PR.ls.set("easyread-side-w", 0);
+    applySideW();
+    requestAnimationFrame(done);
+  });
 
   PR.togglePages = function (force) {
     const open = force != null ? force : PR.side !== "pages";
@@ -105,7 +162,26 @@
     if (act === "close") PR.togglePages(false);
     if (act === "prev") showPage(pvPage - 1, pvBlock);
     if (act === "next") showPage(pvPage + 1, pvBlock);
-    if (act === "zoom") { body.classList.toggle("pv-zoom"); b.textContent = body.classList.contains("pv-zoom") ? "适宽" : "放大"; showPage(pvPage, pvBlock); }
+    if (act === "zoom") {
+      body.classList.toggle("pv-zoom");
+      b.textContent = body.classList.contains("pv-zoom") ? "适宽" : "放大";
+      savePv({ zoom: body.classList.contains("pv-zoom") });
+      showPage(pvPage, pvBlock);
+    }
   });
   PR.pageStep = (d) => showPage(pvPage + d, pvBlock);
+
+  /* 记住“放大”和“跟随”开关（存在浏览器里，下次打开还是这个状态） */
+  function savePv(patch) { PR.ls.set("easyread-pv", Object.assign(PR.ls.get("easyread-pv", {}), patch)); }
+  const pvSaved = PR.ls.get("easyread-pv", {});
+  if (pvSaved.zoom) {
+    body.classList.add("pv-zoom");
+    const zb = PR.$('[data-pv="zoom"]');
+    if (zb) zb.textContent = "适宽";
+  }
+  const followBox = PR.$(".pv-follow input");
+  if (followBox) {
+    if (pvSaved.follow === false) followBox.checked = false;
+    followBox.addEventListener("change", () => savePv({ follow: followBox.checked }));
+  }
 })(window.PR);

@@ -77,6 +77,7 @@
       '<div class="cover">' + thumb + '<div class="actions">' +
       '<a class="btn accent" href="/read/' + i.id + '">' + PR.icon("book", "sm") + readLabel + "</a>" +
       '<a class="btn line" href="/p/' + i.id + '/source.pdf" target="_blank" rel="noopener">' + PR.icon("pdf", "sm") + "打开原 PDF</a>" +
+      '<button class="btn line" data-d="pdf">' + PR.icon("download", "sm") + "导出中文 PDF</button>" +
       '<div class="act-row"><button class="btn line" data-d="cite" title="复制参考文献格式：GB/T 7714、APA、BibTeX">' + PR.icon("copy", "sm") + "复制引用</button>" +
       '<button class="btn icon line" data-d="star" title="星标（S）" style="color:' + (i.starred ? "#c9a24a" : "") + '">' + PR.icon("star", "sm").replace('class="i sm"', 'class="i sm"' + (i.starred ? ' style="fill:currentColor"' : "")) + "</button>" +
       '<button class="btn icon line" data-d="more" title="更多：导出、打开文件夹、回收站">' + PR.icon("more", "sm") + "</button></div></div></div>" +
@@ -122,6 +123,7 @@
     if (act === "close") L.select(null);
     else if (act === "star") L.patch(i.id, { starred: !i.starred });
     else if (act === "read") L.openReader(i.id);
+    else if (act === "pdf") PR.openLibPdfExport(i.id);
     else if (act === "abs") { PR.$("#abs").classList.toggle("open"); d.textContent = PR.$("#abs").classList.contains("open") ? "收起" : "展开全文"; }
     else if (act === "cite") PR.menu(d, [
       { label: "GB/T 7714 · 中文论文、学位论文", icon: "copy", fn: () => copy(PR.cite(i, "gb"), " GB/T 7714 引用") },
@@ -142,6 +144,53 @@
     PR.toast("已开始重新翻译"); L.load();
   }
 
+  PR.openLibPdfExport = function (id) {
+    const i = L.byId(id);
+    if (!i) return;
+    const saved = PR.ls.get("easyread-pdf-export", { mode: "zh", notes: false });
+    const dlg = PR.$("#textDlg");
+    const box = dlg.querySelector(".dialog");
+    box.classList.remove("wide");
+    const noteCount = (i.notes || 0) + (i.highlights || 0);
+    box.innerHTML = "<h2>导出中文 PDF</h2>" +
+      '<div class="exp-opts">' +
+      '<label><input type="radio" name="libPdfMode" value="zh"' + (saved.mode !== "bi" ? " checked" : "") + ">纯中文译文（推荐）</label>" +
+      '<label><input type="radio" name="libPdfMode" value="bi"' + (saved.mode === "bi" ? " checked" : "") + ">中英双语对照（每段中文下附英文原文）</label>" +
+      '<hr style="border:0;border-top:1px solid var(--rule);margin:4px 0">' +
+      '<label><input type="checkbox" data-lib-pdf-notes' + (saved.notes ? " checked" : "") + ">包含我的笔记、划线与 AI 批注" +
+      (noteCount ? '<span class="n">' + noteCount + " 处笔记/划线</span>" : "") + "</label></div>" +
+      '<p class="hint">基于中文阅读页重排生成 PDF（宋体正文、KaTeX 公式、三线表、裁切插图、参考文献）。</p>' +
+      '<div class="actions"><button class="btn" data-lib-pdf-close>取消</button><button class="btn primary" data-lib-pdf-go>导出 PDF</button></div>';
+    dlg.classList.add("open");
+    box.onclick = async (e) => {
+      if (e.target.closest("[data-lib-pdf-close]")) { dlg.classList.remove("open"); box.classList.add("wide"); return; }
+      if (!e.target.closest("[data-lib-pdf-go]")) return;
+      const modeEl = box.querySelector('input[name="libPdfMode"]:checked');
+      const notesEl = box.querySelector("[data-lib-pdf-notes]");
+      const opts = { mode: modeEl ? modeEl.value : "zh", notes: !!(notesEl && notesEl.checked) };
+      PR.ls.set("easyread-pdf-export", opts);
+      dlg.classList.remove("open");
+      box.classList.add("wide");
+      PR.toast('<span class="spin"></span> 正在生成中文 PDF，请稍候…', null, 45000);
+      try {
+        const url = "/api/p/" + encodeURIComponent(id) + "/export-pdf?mode=" + encodeURIComponent(opts.mode) + "&notes=" + (opts.notes ? "1" : "0");
+        const r = await fetch(url, { cache: "no-store" });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.error || "生成失败 " + r.status);
+        }
+        const blob = await r.blob();
+        const stem = (i.title_zh || i.title_en || "论文").slice(0, 40).replace(/[\\/:*?"<>|]/g, "");
+        const suffix = (opts.mode === "bi" ? "中英对照" : "中文版") + (opts.notes ? "-含批注" : "");
+        const a = PR.el("a", { href: URL.createObjectURL(blob), download: stem + "-" + suffix + ".pdf" });
+        document.body.appendChild(a); a.click(); a.remove();
+        PR.toast("已导出中文 PDF");
+      } catch (err) {
+        PR.toast("导出 PDF 失败：" + PR.esc(err.message));
+      }
+    };
+  };
+
   PR.rowMenu = function (id, where) {
     const i = L.byId(id);
     const setStatus = (s) => () => L.patch(id, { status: s });
@@ -156,6 +205,7 @@
       { label: "标为未读", fn: setStatus("unread") }, { label: "标为在读", fn: setStatus("reading") }, { label: "标为已读", fn: setStatus("done") },
       "-",
       { label: "复制 BibTeX", icon: "copy", fn: () => copy(PR.cite(i, "bibtex"), " BibTeX") },
+      { label: "导出中文 PDF…", icon: "download", fn: () => PR.openLibPdfExport(id) },
       { label: "导出离线 HTML（可发给别人）", icon: "download", fn: () => { PR.toast("正在打包…"); location.href = "/api/p/" + id + "/export"; } },
       { label: "打开所在文件夹", icon: "folder", fn: () => PR.api("/api/p/" + id + "/reveal", { method: "POST", body: {} }).catch((e) => PR.toast(PR.esc(e.message))) },
       { label: "全部重新翻译", icon: "redo", fn: () => retranslateAll(i) },

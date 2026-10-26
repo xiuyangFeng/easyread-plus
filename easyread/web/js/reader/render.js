@@ -66,18 +66,21 @@
       const tag = b.ordered ? "ol" : "ul";
       return "<" + tag + ">" + (b.items || []).map((it, i) => "<li>" + zhDiv(b.id + "#" + i) + enDiv(it.en) + "</li>").join("") + "</" + tag + ">";
     },
-    math: (b) => '<div class="math-row"><div class="math-body">' + PR.tex(b.tex, true) + "</div>" + (b.tag ? '<div class="math-tag">(' + PR.esc(b.tag) + ")</div>" : "") + "</div>",
+    math: (b) => '<div class="math-row"><div class="math-body">' + PR.tex(b.tex, true) + "</div>" + (b.tag ? '<div class="math-tag">(' + PR.esc(b.tag) + ")</div>" : "") +
+      (b.tex ? '<button class="blk-copy" data-copy="tex" title="复制 LaTeX 源码">' + PR.icon("copy", "sm") + "</button>" : "") + "</div>",
     table(b) {
       const al = (b.align || "").split("");
       const style = (i) => (al[i] ? ' style="text-align:' + ({ l: "left", r: "right", c: "center" }[al[i]] || "left") + '"' : "");
       const head = (b.head || []).map((r) => "<tr>" + r.map((c, i) => "<th" + style(i) + ">" + cell(c) + "</th>").join("") + "</tr>").join("");
       const rows = (b.rows || []).map((r) => "<tr>" + r.map((c, i) => "<td" + style(i) + ">" + cell(c) + "</td>").join("") + "</tr>").join("");
-      const table = '<div class="tbl-wrap"><table class="tbl"><thead>' + head + "</thead><tbody>" + rows + "</tbody></table></div>";
+      const table = '<div class="tbl-wrap"><table class="tbl"><thead>' + head + "</thead><tbody>" + rows + "</tbody></table>" +
+        '<button class="blk-copy" data-copy="table" title="复制表格（Excel / Markdown / CSV）">' + PR.icon("copy", "sm") + "</button></div>";
       return b.caption_pos === "above" ? captionHtml(b) + table : table + captionHtml(b);
     },
     figure(b) {
-      const img = b.src ? '<img src="' + PR.imageUrl(b.src) + '" alt="" loading="lazy">'
-        : '<button class="fig-missing" data-t="page">图见原文第 ' + b.page + " 页（点击查看）</button>";
+      const lazy = S.pdf ? "" : ' loading="lazy"';
+      const img = b.src ? '<img src="' + PR.imageUrl(b.src) + '" alt=""' + lazy + ">"
+        : '<button class="fig-missing" data-t="page">图见原文第 ' + b.page + ' 页<span class="no-print">（点击查看）</span></button>';
       return img + captionHtml(b);
     },
     note: (b) => '<div class="inline-note"><div class="lbl">阅读批注（非原文）</div>' + PR.mdBlocks(b.zh) + "</div>",
@@ -120,11 +123,13 @@
     const pages = (m.pages || []).length, done = (tr.done_pages || []).length;
     const scope = "<b>译文</b>　" + (pages ? (done >= pages ? "全文 " + pages + " 页" : "已译 " + done + " / " + pages + " 页") : "尚未处理") +
       (tr.note ? "　" + PR.esc(tr.note) : "") +
-      '<br>正文是译文；<span class="legend-agent"></span>青色细线是 AI 的解释和回答，<span class="legend-mine"></span>赭色细线是我的笔记，都不属于原文。';
+      '<span class="legend-line"><br>正文是译文；<span class="legend-agent"></span>青色细线是 AI 的解释和回答，<span class="legend-mine"></span>赭色细线是我的笔记，都不属于原文。</span>';
+    const pnote = ((S.reader && S.reader.paper_note || {}).body || "").trim();
+    const pnoteHtml = pnote ? '<div class="pdf-paper-note"><div class="lbl">论文笔记</div>' + PR.mdBlocks(pnote) + "</div>" : "";
     return '<header class="paper-head" id="b-head" data-id="head">' + (kicker ? '<div class="kicker">' + kicker + "</div>" : "") +
-      "<h1>" + PR.esc(m.title_zh || m.title_en || "（正在识别标题）") + "</h1>" +
-      (m.title_zh && m.title_en ? '<p class="title-en" lang="en">' + PR.esc(m.title_en) + "</p>" : "") +
-      (by ? '<p class="byline">' + by + "</p>" : "") + '<p class="scope">' + scope + "</p>" + creditHtml() + "</header>";
+      "<h1>" + PR.md(m.title_zh || m.title_en || "（正在识别标题）", { cite: false, xref: false }) + "</h1>" +
+      (m.title_zh && m.title_en ? '<p class="title-en" lang="en">' + PR.md(m.title_en, { cite: false, xref: false }) + "</p>" : "") +
+      (by ? '<p class="byline">' + by + "</p>" : "") + '<p class="scope">' + scope + "</p>" + creditHtml() + pnoteHtml + "</header>";
   }
 
   /* 还没译的页：放原页图，边译边读 */
@@ -133,6 +138,7 @@
 
   /* 中间漏掉的页（多半是译失败了）：就地放原页，给重试 */
   function gapHtml(pages) {
+    if (S.pdf && (S.paper.blocks || []).length) return "";
     const failed = failedOf();
     const bad = pages.filter((p) => failed[p.n]);
     const running = ["queued", "running"].includes((S.job || {}).state);
@@ -143,6 +149,7 @@
   }
 
   function pendingHtml(lastPage) {
+    if (S.pdf && (S.paper.blocks || []).length) return "";
     const m = S.paper.meta || {};
     const done = new Set((S.paper.translation || {}).done_pages || []);
     const miss = (m.pages || []).filter((p) => !done.has(p.n) && p.n > lastPage);

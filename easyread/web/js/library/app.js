@@ -49,9 +49,10 @@
     if (L.tag) list = list.filter((i) => i.tags.includes(L.tag));
     if (q) list = list.filter((i) => [i.title_zh, i.title_en, i.authors, i.venue, i.arxiv, i.abstract, (i.tags || []).join(" "), i.year]
       .join(" ").toLowerCase().includes(q));
-    const key = { opened: (i) => i.last_opened || i.added, added: (i) => i.added, year: (i) => String(i.year || ""), title: (i) => i.title_zh || i.title_en };
+    const key = { opened: (i) => i.last_opened || i.added, added: (i) => i.added, year: (i) => String(i.year || ""), title: (i) => i.title_zh || i.title_en, progress: (i) => i.progress || 0 };
     const k = key[L.sort] || key.opened;
-    list.sort((a, b) => (L.sort === "title" ? String(k(a)).localeCompare(String(k(b)), "zh") : String(k(b)).localeCompare(String(k(a)))));
+    if (L.sort === "progress") list.sort((a, b) => k(b) - k(a));
+    else list.sort((a, b) => (L.sort === "title" ? String(k(a)).localeCompare(String(k(b)), "zh") : String(k(b)).localeCompare(String(k(a)))));
     return list;
   }
 

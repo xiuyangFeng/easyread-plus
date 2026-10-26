@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 import shutil
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
@@ -109,6 +110,108 @@ class Library:
 
     def find_by_sha(self, digest: str) -> Workspace | None:
         return self.ws(digest[:12])
+
+
+# ---------- 跨论文全文搜索 ----------
+
+_PER_PAPER = 8  # 每篇最多返回的命中数，防止一篇论文刷屏
+
+
+def _search_texts(ws: Workspace) -> list[tuple]:
+    """一篇论文里可搜索的文字：(block_id, 页码, 章节, 位置说明, 文字)。译文优先取“我的修改”。"""
+    paper = ws.load("paper") or {}
+    reader = ws.load("reader") or {}
+    edits = reader.get("edits", {})
+    section = ""
+    out: list[tuple] = []
+
+    def zh_of(key: str, fallback: str) -> str:
+        e = edits.get(key)
+        return (e.get("zh") if e and e.get("zh") is not None else "") or fallback or ""
+
+    for b in paper.get("blocks", []):
+        bid, page = b.get("id"), b.get("page")
+        if not bid:
+            continue
+        if b.get("type") in ("heading", "references"):
+            section = ((b.get("num") or "") + " " + zh_of(bid or "", b.get("zh") or "")).strip()
+            out.append((bid, page, section, "标题", zh_of(bid or "", b.get("zh") or "")))
+        elif b.get("type") in ("para", "note"):
+            out.append((bid, page, section, "译文", zh_of(bid, b.get("zh") or "")))
+            if b.get("en"):
+                out.append((bid, page, section, "原文", b["en"]))
+        elif b.get("type") == "list":
+            for i, it in enumerate(b.get("items", [])):
+                out.append((f"{bid}#{i}", page, section, "译文", zh_of(f"{bid}#{i}", it.get("zh") or "")))
+                if it.get("en"):
+                    out.append((f"{bid}#{i}", page, section, "原文", it["en"]))
+        elif b.get("type") in ("figure", "table"):
+            out.append((f"{bid}#caption", page, section, "题注", zh_of(f"{bid}#caption", b.get("caption_zh") or "")))
+            if b.get("caption_en"):
+                out.append((f"{bid}#caption", page, section, "题注", b["caption_en"]))
+    note = (reader.get("paper_note") or {}).get("body") or ""
+    if note:
+        out.append(("head", 1, "", "论文笔记", note))
+    for n in reader.get("notes", {}).values():
+        if n.get("deleted"):
+            continue
+        body = n.get("body") or n.get("quote") or ""
+        if body:
+            out.append((n.get("anchor") or "head", n.get("page"), section, "笔记", body))
+    return out
+
+
+def search(root: Path, q: str, limit: int = 40) -> list[dict]:
+    """在整篇文献库里搜译文 / 原文 / 笔记，返回 {论文, 块 id, 章节, 片段}，前端高亮后可点击跳回原段。"""
+    q = (q or "").strip()
+    if len(q) < 2:
+        return []
+    ql = q.lower()
+    results: list[dict] = []
+    for ws in Library(root).all():
+        paper = ws.load("paper") or {}
+        meta = paper.get("meta", {})
+        item = ws.load("item") or {}
+        meta.update({k: v for k, v in (item.get("meta_override") or {}).items() if v})
+        title = meta.get("title_zh") or meta.get("title_en") or "（未命名）"
+        found = 0
+        for bid, page, section, where, text in _search_texts(ws):
+            if not text or found >= _PER_PAPER or len(results) >= limit:
+                continue
+            pos = text.lower().find(ql)
+            if pos < 0:
+                continue
+            start = max(0, pos - 30)
+            end = min(len(text), pos + len(q) + 40)
+            snippet = ("…" if start else "") + text[start:end] + ("…" if end < len(text) else "")
+            results.append({"id": ws.id, "title": title, "block": bid, "page": page, "section": section,
+                            "where": where, "snippet": snippet})
+            found += 1
+        if len(results) >= limit:
+            break
+    return results
+
+
+# ---------- 全库备份 ----------
+
+_SKIP_DIRS = {"pages", "extract", "history", ".trash"}  # 原页大图和抽文字缓存都可以重新生成
+
+
+def backup(root: Path, out: Path) -> Path:
+    """把文献库打成 zip（不含可再生的原页图和缓存），返回 zip 路径。"""
+    root = Path(root)
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
+        for d in sorted(root.iterdir()):
+            if not d.is_dir() or d.name.startswith("."):
+                continue
+            for f in sorted(d.rglob("*")):
+                if not f.is_file() or f.name.startswith(".") or f.suffix.lower() == ".html":
+                    continue
+                rel = f.relative_to(root)
+                if len(rel.parts) > 1 and rel.parts[1] in _SKIP_DIRS:
+                    continue
+                z.write(f, rel)
+    return out
 
 
 def _year(date: str) -> str:

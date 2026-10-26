@@ -43,4 +43,4 @@ E:\CursorProject\easyread\.venv\Scripts\python.exe -m easyread <命令>
 
 ## 交付时说清
 
-翻译范围（哪些页、参考文献是否保留原文）、有没有核对提示、怎么打开（`start.cmd`，或浏览器 `http://127.0.0.1:8765/read/<ID>`）。
+翻译范围（哪些页、参考文献是否保留原文）、有没有核对提示、怎么打开（`start.cmd`，或浏览器 `http://127.0.0.1:8765/read/<ID>`）。若用户需要导出中文 PDF，运行 `easyread export ID --pdf`（可加 `--bi` 导出中英双语对照、`--notes` 附带笔记与 AI 批注、`-o 路径.pdf` 指定输出文件）。

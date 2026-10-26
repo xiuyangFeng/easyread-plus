@@ -47,6 +47,7 @@
       w + " " + xref("eq", a, a) + (b ? " " + and + " " + xref("eq", b, b) : ""));
     s = s.replace(/\bTable\s+(\d+)/g, (m, n) => xref("tab", n, m));
     s = s.replace(/\bFigure\s+(\d+)/g, (m, n) => xref("fig", n, m));
+    s = s.replace(/\bFigs?\.\s*(\d+)/g, (m, n) => xref("fig", n, m));
     s = s.replace(/\bSection\s+(\d+(?:\.\d+)*)/g, (m, n) => xref("sec", n, m));
     s = s.replace(/\bAppendix\s+([A-Z])\b/g, (m, n) => xref("sec", n, m));
     return s;

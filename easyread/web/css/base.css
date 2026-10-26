@@ -158,6 +158,10 @@ textarea.input { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .dialog-backdrop.open .dialog { transform: none; }
 .dialog h2 { font: 600 18px/1.4 var(--serif-zh); margin: 0 0 16px; }
 .dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.exp-opts { display: grid; gap: 8px; margin: 4px 0 10px; }
+.exp-opts label { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-2); cursor: pointer; }
+.exp-opts input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.exp-opts .n { margin-left: auto; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 
 #toast {
   position: fixed; left: 50%; bottom: 26px; z-index: 95; transform: translate(-50%, 12px);

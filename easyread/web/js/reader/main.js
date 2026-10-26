@@ -56,6 +56,7 @@
       if (k === "n" || k === "q") { e.preventDefault(); return PR.selectionAction(k === "n" ? "note" : "question"); }
     }
     if (k === "escape") {
+      if (PR.ttsActive && PR.ttsActive()) { PR.ttsStop(); return; }  // 第一下 Esc 先停朗读
       if (PR.$("#settings").classList.contains("open") || PR.$("#popover").classList.contains("open") || body.classList.contains("drawer-open")) {
         PR.toggleDrawer(false); PR.hidePopover(); PR.$("#settings").classList.remove("open");
       } else if (PR.currentBlock()) PR.setCurrent(null);
@@ -123,6 +124,12 @@
       PR.useServerUi(p);
     }
     if (PR.store.mode === "static") PR.$("#backBtn").style.display = "none";
+    if (S.pdf) {
+      PR.prefs.theme = "light";
+      PR.prefs.mode = S.pdf.mode === "bi" ? "bi" : "zh";
+      PR.applyPrefs();
+      body.classList.add("pdf-export", S.pdf.notes ? "print-notes" : "print-clean");
+    }
     PR.applyFeatures();
     const m = S.paper.meta || {};
     document.title = (m.short_zh || m.title_zh || m.title_en || "论文") + " · EasyRead";
@@ -134,6 +141,10 @@
     PR.applyMarks();
     PR.renderMargin();
     PR.renderJobState();
+    if (S.pdf) {
+      PR.fitWide();
+      return;
+    }
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", PR.debounce(() => { PR.fitWide(); PR.renderMargin(); }, 150));
