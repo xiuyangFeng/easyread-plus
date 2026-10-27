@@ -125,7 +125,7 @@
   }
   function composerHtml() {
     if (!PR.canChat()) {
-      const repo = (S.demo && S.demo.repo) || "https://github.com/Edwardxlai/easyread";
+      const repo = (S.demo && S.demo.repo) || "https://github.com/xiuyangFeng/easyread-plus";
       return '<div class="ch-compose ch-readonly"><b>这是演示里的对话记录，这里不能提问</b><span>装到自己电脑上之后，边读边问 Claude、GPT 或免费模型；可以引用多段，问“我标红的那些”也能找到。</span>' +
         '<a class="btn sm accent" href="' + repo + '" target="_blank" rel="noopener">去 GitHub 安装 ↗</a></div>';
     }

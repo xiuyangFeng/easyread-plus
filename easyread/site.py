@@ -13,7 +13,7 @@ from . import chat_store
 from .build import build
 from .store import Workspace
 
-REPO = "https://github.com/Edwardxlai/easyread"
+REPO = "https://github.com/xiuyangFeng/easyread-plus"  # 在线演示里“去 GitHub 安装”的链接；本项目基于 https://github.com/Edwardxlai/easyread 修改
 
 
 def build_demo(ws: Workspace, out_dir: Path, name: str = "index.html", credit: str = "") -> Path:

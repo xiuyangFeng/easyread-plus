@@ -1,16 +1,18 @@
 <p align="center">
   <img src="docs/images/logo.svg" width="72" alt="EasyRead">
 </p>
-<h1 align="center">EasyRead</h1>
+<h1 align="center">EasyRead Plus</h1>
 <p align="center"><b>把英文论文，读成舒服的中文。</b><br>
 导入 PDF，后台逐页翻译；公式、表格照原文排好，随时对照原文，边读边划线、记笔记、提问。<br>
 本地运行，论文和笔记只存在你自己的电脑上。</p>
 
-<p align="center"><a href="https://edwardxlai.github.io/easyread/demo/"><b>▶ 在线试读一篇</b></a> · <a href="https://edwardxlai.github.io/easyread/">项目主页</a> · <a href="https://github.com/Edwardxlai/easyread/releases/latest">下载</a></p>
+> **关于本仓库**：EasyRead Plus 是 [EasyRead](https://github.com/Edwardxlai/easyread)（作者 [@Edwardxlai](https://github.com/Edwardxlai)，MIT 协议）的非官方增强版，基于原项目 v1.0.0 修改，新增论文脉络（段落主旨、章节脉络、核心论点、图表关系）、随文看图、原文阅读模式等。核心设计归功于原作者，来源、改动和第三方许可见 [NOTICE.md](NOTICE.md)。本仓库与原作者无关，问题请在本仓库反馈。
+
+<p align="center"><a href="https://edwardxlai.github.io/easyread/demo/"><b>▶ 在线试读一篇（原项目演示）</b></a> · <a href="https://edwardxlai.github.io/easyread/">原项目主页</a> · <a href="https://github.com/xiuyangFeng/easyread-plus">本仓库</a></p>
 
 <p align="center">
-  <a href="https://github.com/Edwardxlai/easyread/releases/latest"><img src="https://img.shields.io/github/v/release/Edwardxlai/easyread?label=版本" alt="版本"></a>
-  <a href="https://github.com/Edwardxlai/easyread/actions/workflows/test.yml"><img src="https://github.com/Edwardxlai/easyread/actions/workflows/test.yml/badge.svg" alt="测试"></a>
+  <a href="https://github.com/Edwardxlai/easyread"><img src="https://img.shields.io/badge/基于-EasyRead%20v1.0.0-2f6070" alt="基于 EasyRead v1.0.0"></a>
+  <a href="https://github.com/xiuyangFeng/easyread-plus/actions/workflows/test.yml"><img src="https://github.com/xiuyangFeng/easyread-plus/actions/workflows/test.yml/badge.svg" alt="测试"></a>
   <img src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-本地运行-2f6070" alt="平台">
   <img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT">
 </p>
@@ -58,7 +60,7 @@
 
 需要 [Python 3.10+](https://www.python.org/downloads/)。
 
-先从 [Releases](https://github.com/Edwardxlai/easyread/releases/latest) 下载最新版的 zip 解压（或者 `git clone` 本仓库）。
+`git clone https://github.com/xiuyangFeng/easyread-plus.git`（或者在本仓库页面点 Code → Download ZIP 解压）。
 
 **Windows**：双击 `start.cmd`。第一次会自动装好环境（一分钟左右），之后双击直接打开。
 
@@ -73,7 +75,7 @@
 **或者用 pip**（数据放在 `~/EasyRead`）：
 
 ```bash
-pip install git+https://github.com/Edwardxlai/easyread
+pip install git+https://github.com/xiuyangFeng/easyread-plus
 easyread
 ```
 
@@ -128,8 +130,8 @@ node tests/e2e.cjs library/<论文ID>       # 浏览器端到端测试（需要 
 
 设计取舍见 [docs/design.md](docs/design.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。
 
-## 许可
+## 许可与致谢
 
-MIT。公式渲染用 [KaTeX](https://katex.org)（MIT）。
+MIT，见 [LICENSE](LICENSE)。本项目基于 Edward（[@Edwardxlai](https://github.com/Edwardxlai)）的 [EasyRead](https://github.com/Edwardxlai/easyread)（MIT，版权人 LiangXiLin）修改，原作者的版权声明保留在 LICENSE 里；来源、主要改动和第三方组件许可见 [NOTICE.md](NOTICE.md)。公式渲染用 [KaTeX](https://katex.org)（MIT）。
 
 在线演示用的论文是 Rafailov 等人的 *Direct Preference Optimization: Your Language Model is Secretly a Reward Model*（[arXiv:2305.18290](https://arxiv.org/abs/2305.18290)，CC BY 4.0），中文译文由 EasyRead 调用 Claude 生成，演示里的划线和笔记是示例。
