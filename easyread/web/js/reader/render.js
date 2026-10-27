@@ -30,6 +30,7 @@
     PR.refById = {};
     PR.order = {};
     (S.paper.references || []).forEach((r) => (PR.refById[String(r.id)] = r));
+    PR.indexAuthorYear(S.paper.references);
     (S.paper.blocks || []).forEach((b, i) => {
       PR.blockById[b.id] = b;
       PR.order[b.id] = i;
@@ -38,6 +39,7 @@
       if (b.type === "figure" && b.num) PR.xindex.fig[b.num] = b.id;
       if (b.type === "heading" || b.type === "references") { if (b.num) PR.xindex.sec[b.num] = b.id; PR.headings.push(b); }
     });
+    if (PR.buildAbbrs) PR.buildAbbrs();
   }
 
   function staleTag(key) { return PR.isStale(key) ? '<button class="stale-tag" data-t="stale" title="你改过这段之后，译者稿又更新了">译者稿有更新</button>' : ""; }

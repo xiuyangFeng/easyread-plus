@@ -63,6 +63,10 @@
 
   PR.renderDetail = function () {
     const box = PR.$("#detail");
+    if (L.multi.size > 1 && PR.renderBatch) {
+      if (box.contains(document.activeElement) && document.activeElement.matches("input")) return;
+      return PR.renderBatch(box);
+    }
     const i = L.byId(L.selected);
     if (!i) { box.innerHTML = ""; return; }
     if (box.contains(document.activeElement) && document.activeElement.matches("[contenteditable], input")) return; // 正在编辑，不打断
@@ -91,10 +95,24 @@
       '<span>链接</span><span contenteditable="plaintext-only" data-meta="url">' + PR.esc(i.url) + "</span>" +
       "<span>添加</span><span>" + PR.esc(PR.relTime(i.added)) + (i.last_opened ? "　·　上次打开 " + PR.esc(PR.relTime(i.last_opened)) : "") + "</span></div>" +
       "<h4>翻译</h4>" + jobHtml(i) +
+      (i.read_sec ? '<p class="mine-line">读了 ' + PR.esc(fmtDur(i.read_sec)) + (i.read_days > 1 ? "，分 " + i.read_days + " 天" : "") + "</p>" : "") +
+      citesHtml(i) +
       (i.notes + i.highlights + i.open_questions ? '<p class="mine-line">' + [i.notes && i.notes + " 条笔记", i.highlights && i.highlights + " 处划线", i.open_questions && i.open_questions + " 个问题待回答"].filter(Boolean).join(" · ") + "</p>" : "") +
       (i.abstract ? '<h4>摘要</h4><div class="abstract" id="abs">' + PR.esc(i.abstract.replace(/\$([^$]+)\$/g, "$1")) + '</div><button class="linkish" data-d="abs">展开全文</button>' : "") +
       "</div>";
   };
+
+  const fmtDur = (sec) => { const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60); return sec < 60 ? "不到 1 分钟" : h ? h + " 小时" + (m ? " " + m + " 分" : "") : m + " 分钟"; };
+  PR.fmtDur = fmtDur;
+  /* 库内引用：这篇的参考文献里有库里的哪几篇，库里又有哪几篇引用了它（citegraph.py） */
+  function citesHtml(i) {
+    const out = L.edges.filter((e) => e.from === i.id && L.byId(e.to)), inn = L.edges.filter((e) => e.to === i.id && L.byId(e.from));
+    if (!out.length && !inn.length) return "";
+    const item = (id, ref) => { const p = L.byId(id); return '<li><button class="linkish" data-pick="' + id + '">' + PR.esc(p.title_zh || p.title_en) + "</button>" + (ref ? '<span class="dim">参考文献 [' + PR.esc(ref) + "]</span>" : "") + "</li>"; };
+    return "<h4>库内引用</h4>" +
+      (out.length ? '<div class="cite-grp"><span>它引用了库里的 ' + out.length + " 篇</span><ul>" + out.map((e) => item(e.to, e.ref)).join("") + "</ul></div>" : "") +
+      (inn.length ? '<div class="cite-grp"><span>库里有 ' + inn.length + " 篇引用了它</span><ul>" + inn.map((e) => item(e.from)).join("") + "</ul></div>" : "");
+  }
 
   async function saveMeta(el) {
     const i = L.byId(L.selected);
@@ -115,6 +133,8 @@
     if (!i) return;
     const st = e.target.closest("[data-status]");
     if (st) return L.patch(i.id, { status: st.dataset.status });
+    const pick = e.target.closest("[data-pick]");
+    if (pick) { L.select(pick.dataset.pick); const r = PR.$('.row[data-id="' + pick.dataset.pick + '"]'); if (r) r.scrollIntoView({ block: "nearest" }); return; }
     const ct = e.target.closest("[data-cattoggle]");
     if (ct) return L.toggleInCat(i.id, ct.dataset.cattoggle);
     const d = e.target.closest("[data-d]");

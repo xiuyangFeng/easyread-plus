@@ -39,8 +39,11 @@
           <option value="progress">阅读进度</option>
           <option value="year">发表年份</option>
           <option value="title">标题</option>
+          <option value="cited">库内被引</option>
+          <option value="readtime">阅读时长</option>
         </select>
       </label>
+      <button class="btn sm line" id="exportView" title="把当前列表里的论文导出成 BibTeX / 引用列表">导出引用</button>
     </div>
     <div id="list" class="list" role="listbox" tabindex="0"></div>
   </main>
@@ -63,6 +66,8 @@
 <script src="/web/js/library/detail.js"></script>
 <script src="/web/js/library/import.js"></script>
 <script src="/web/js/library/search.js"></script>
+<script src="/web/js/library/tools.js"></script>
+<script src="/web/js/library/batch.js"></script>
 <script src="/web/js/common/settings-models.js"></script>
 <script src="/web/js/common/settings.js"></script>
 <script src="/web/js/common/settings-tabs.js"></script>

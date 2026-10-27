@@ -22,7 +22,9 @@
       if (b.type === "heading" || b.type === "references") cur = b;
       if (b.id === id) break;
     }
-    return cur ? (cur.num ? cur.num + " " : "") + PR.plain(PR.textFor(cur.id) || cur.zh) : "论文开头";
+    if (!cur) return "论文开头";
+    const t = PR.plain(PR.textFor(cur.id) || cur.zh);
+    return cur.num && !t.startsWith(cur.num) ? cur.num + " " + t : t;  // 有的译文标题自己带了编号
   }
   PR.sectionOf = sectionOf;
 

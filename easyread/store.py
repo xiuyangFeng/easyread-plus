@@ -5,12 +5,13 @@
   discussion.json  翻译方写：解释、问答、回复、原文核对提示
   gist.json        翻译方写：段落主旨、论文脉络和核心论点（读者改过的条目带 by=me，重新生成时保留）
   reader.json      只由页面经 /api/.../ops 写：用户改的译文、笔记、划线、论文笔记、进度
-  item.json        只由页面经 /api/items 写：标签、阅读状态、星标、打开时间
+  item.json        只由页面经 /api/items 写：标签、阅读状态、星标、打开时间、阅读时长
 """
 from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -232,9 +233,26 @@ class Workspace:
         allowed = {"tags", "status", "starred", "rating", "last_opened", "meta_override", "archived"}
 
         def apply(item):
+            if fields.get("status") == "done" and item.get("status") != "done":
+                item["done_at"] = now_iso()  # 阅读统计里的“读完了几篇”按这个算
             for k, v in fields.items():
                 if k in allowed:
                     item[k] = v
             item["updated"] = now_iso()
             return item
+        return self.update("item", apply)
+
+    def add_read_time(self, seconds, day: str) -> dict:
+        """阅读页每隔半分钟报一次有效阅读秒数（页面在前台、人在动），按读者本地日期累计在 item.json 的 read 里。"""
+        seconds = max(0, min(int(seconds), 600))
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(day or "")):
+            raise ValueError("day 要写成 YYYY-MM-DD")
+
+        def apply(item):
+            r = item.setdefault("read", {})
+            r["total"] = int(r.get("total") or 0) + seconds
+            days = r.setdefault("days", {})
+            days[day] = int(days.get(day) or 0) + seconds
+            r["last"] = now_iso()
+            return r
         return self.update("item", apply)

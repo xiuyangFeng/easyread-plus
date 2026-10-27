@@ -100,8 +100,8 @@
     if (!src) return;
     // 原页面板显示的是 w=1000 的缩小版：灯箱里换成全尺寸原页
     if (target.closest(".pv-page") && src.includes("?")) src = src.split("?")[0];
-    const blk = target.closest(".blk, .fp-fig");
-    const capEl = blk && (blk.querySelector(".caption .zh") || blk.querySelector("figcaption"));
+    const blk = target.closest(".blk, .fp-fig, .gl-card");
+    const capEl = blk && (blk.querySelector(".caption .zh") || blk.querySelector("figcaption") || blk.querySelector(".gl-cap"));
     cap.textContent = capEl ? capEl.textContent.trim().slice(0, 120) : "";
     z = 0.001; tx = ty = 0;
     img.style.transform = "translate(-50%,-50%) scale(0.001)";
@@ -110,6 +110,7 @@
     lb.classList.add("open");
     document.body.classList.add("lb-open");
   }
+  PR.openLightbox = open;
   function close() {
     if (!lb) return;
     lb.classList.remove("open");

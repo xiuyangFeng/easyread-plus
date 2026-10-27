@@ -12,7 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, chat, chat_models, chat_store, cli_models, config, detect, engines, library, paperdata, pdfwork, prefs
+from . import __version__, chat, chat_models, chat_store, citegraph, cli_models, config, detect, engines, library, overview, paperdata, pdfwork, prefs
 from .log import log, setup as setup_log, tail
 from .jobs import Jobs
 from .library import Library
@@ -131,6 +131,7 @@ class Handler(BaseHTTPRequestHandler):
                 pass
 
     def _body(self) -> bytes:
+        self._read_body = True
         n = int(self.headers.get("Content-Length", "0"))
         if n > MAX_UPLOAD:
             raise ValueError("文件太大")
@@ -159,7 +160,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._file(_safe(WEB, path[5:]), cache=path.startswith("/web/vendor/"))
         if path == "/api/library":
             cfg = config.load()
-            return self._json(200, {"items": lib.list(), "token": app.token, "jobs": app.jobs.small_status(),
+            items, cites = lib.list(), citegraph.counts(lib)
+            for it in items:
+                it["lib_cites"], it["lib_cited_by"] = cites.get(it["id"], (0, 0))
+            return self._json(200, {"items": items, "citegraph": citegraph.graph(lib)["edges"], "token": app.token, "jobs": app.jobs.small_status(),
                                     "engine": cfg.get("engine"), "engine_label": _engine_label(cfg),
                                     "first_run": config.is_first_run(), "version": __version__})
         if path == "/api/config":
@@ -177,6 +181,15 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/search":
             q = parse_qs(url.query).get("q", [""])[0]
             return self._json(200, {"results": library.search(lib.root, q)})
+        if path == "/api/citegraph":  # 库内引用关系：谁的参考文献里有库里的谁
+            return self._json(200, citegraph.graph(lib))
+        if path == "/api/notes":  # 全部论文的划线、笔记、问题
+            return self._json(200, overview.notes(lib))
+        if path == "/api/stats":
+            return self._json(200, overview.stats(lib))
+        if path == "/api/compare":
+            ids = [x for x in parse_qs(url.query).get("ids", [""])[0].split(",") if x]
+            return self._json(200, {"rows": overview.compare(lib, ids)})
         if path == "/api/backup":
             import os
             import tempfile
@@ -206,6 +219,13 @@ class Handler(BaseHTTPRequestHandler):
                     "engine": config.load().get("engine")})
             if action == "versions":
                 return self._json(200, ws.versions())
+            if action == "refmatch":  # 参考文献里哪些条目就是库里的论文
+                out = {}
+                for ref, pid in citegraph.refs_in_library(lib, ws.id).items():
+                    other = lib.ws(pid)
+                    meta = citegraph.meta_of(other) if other else {}
+                    out[ref] = {"id": pid, "title": meta.get("title_zh") or meta.get("title_en") or ""}
+                return self._json(200, {"refs": out})
             if action == "chat":
                 return self._json(200, {"threads": chat_store.threads(ws), **chat_models.listing(config.load())})
             if action == "log":
@@ -232,15 +252,19 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------- POST ----------
     def do_POST(self):
-        if self.headers.get("X-Token") != self.app.token:  # 挡住别的网页跨站写
-            return self._json(403, {"error": "bad token"})
+        self._read_body = False
         try:
+            if self.headers.get("X-Token") != self.app.token:  # 挡住别的网页跨站写
+                return self._json(403, {"error": "bad token"})
             self._post()
         except (ValueError, KeyError) as e:
             self._json(400, {"error": str(e)})
         except Exception as e:  # noqa: BLE001
             log.exception("请求出错 %s", self.path)
             self._json(500, {"error": f"{type(e).__name__}: {e}"})
+        finally:
+            if not self._read_body and int(self.headers.get("Content-Length") or 0):
+                self.close_connection = True  # 没读的请求体还在连接里，留着会被当成下一个请求
 
     def _post(self):
         url = urlparse(self.path)
@@ -318,6 +342,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, res)
             if action == "item":
                 return self._json(200, ws.patch_item(body))
+            if action == "readtime":  # 阅读页定时报的有效阅读秒数
+                return self._json(200, ws.add_read_time(body.get("sec", 0), body.get("day", "")))
             if action == "translate":
                 pages = paperdata.parse_pages(body["pages"]) if body.get("pages") else None
                 if body.get("failed"):  # 只重试上次没译成功的页

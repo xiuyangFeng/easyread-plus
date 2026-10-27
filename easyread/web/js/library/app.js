@@ -1,7 +1,8 @@
 /* 文献库：列表、筛选、排序、键盘操作、状态轮询。 */
 (function (PR) {
   "use strict";
-  const L = (PR.lib = { items: [], view: "all", tag: null, q: "", sort: PR.ls.get("easyread-sort", "opened"), selected: null, engine: "claude" });
+  const L = (PR.lib = { items: [], view: "all", tag: null, q: "", sort: PR.ls.get("easyread-sort", "opened"), selected: null, multi: new Set(), engine: "claude", edges: [] });
+  L.TOOLS = {};  // 不是论文列表的视图（全部笔记、阅读统计）：{视图名: {title, render}}，见 library/tools.js
   const prefs = PR.ls.get("easyread-prefs", {});
   PR.applyTheme(prefs.theme);
 
@@ -31,6 +32,7 @@
     L.version = d.version;
     engineChip();
     L.items = d.items;
+    L.edges = d.citegraph || [];
     L.render();
     schedule();
   };
@@ -42,6 +44,7 @@
     pollT = setTimeout(() => L.load().catch(() => schedule()), busy ? 2500 : 15000);
   }
 
+  L.filtered = () => filtered();
   function filtered() {
     const view = L.VIEWS.find((v) => v[0] === L.view) || L.VIEWS[0];
     const q = L.q.trim().toLowerCase();
@@ -49,9 +52,10 @@
     if (L.tag) list = list.filter((i) => i.tags.includes(L.tag));
     if (q) list = list.filter((i) => [i.title_zh, i.title_en, i.authors, i.venue, i.arxiv, i.abstract, (i.tags || []).join(" "), i.year]
       .join(" ").toLowerCase().includes(q));
-    const key = { opened: (i) => i.last_opened || i.added, added: (i) => i.added, year: (i) => String(i.year || ""), title: (i) => i.title_zh || i.title_en, progress: (i) => i.progress || 0 };
+    const key = { opened: (i) => i.last_opened || i.added, added: (i) => i.added, year: (i) => String(i.year || ""), title: (i) => i.title_zh || i.title_en, progress: (i) => i.progress || 0,
+      cited: (i) => i.lib_cited_by || 0, readtime: (i) => i.read_sec || 0 };
     const k = key[L.sort] || key.opened;
-    if (L.sort === "progress") list.sort((a, b) => k(b) - k(a));
+    if (["progress", "cited", "readtime"].includes(L.sort)) list.sort((a, b) => k(b) - k(a) || String(b.last_opened || "").localeCompare(String(a.last_opened || "")));
     else list.sort((a, b) => (L.sort === "title" ? String(k(a)).localeCompare(String(k(b)), "zh") : String(k(b)).localeCompare(String(k(a)))));
     return list;
   }
@@ -79,15 +83,25 @@
     const tags = (i.tags || []).map((t) => '<span class="chip cat">' + PR.icon("folder", "sm") + PR.esc(t) + "</span>").join("");
     const thumb = i.thumb ? '<div class="thumb" style="background-image:url(' + i.thumb + ')"></div>' : '<div class="thumb blank">' + PR.icon("pdf") + "</div>";
     const notes = i.notes + i.highlights ? '<span class="stat">' + PR.icon("note", "sm") + (i.notes + i.highlights) + (i.open_questions ? " · " + i.open_questions + " 问待答" : "") + "</span>" : "";
+    const cited = i.lib_cited_by ? '<span class="stat" title="文献库里有 ' + i.lib_cited_by + ' 篇引用了它">' + PR.icon("link", "sm") + "库内被引 " + i.lib_cited_by + "</span>" : "";
     const prog = i.progress ? '<div class="meter" title="阅读进度 ' + Math.round(i.progress * 100) + '%"><i style="width:' + Math.round(i.progress * 100) + '%"></i></div>' : "";
-    return '<div class="row' + (L.selected === i.id ? " on" : "") + '" data-id="' + i.id + '" role="option" draggable="true">' + thumb +
+    return '<div class="row' + (L.selected === i.id || L.multi.has(i.id) ? " on" : "") + (L.multi.has(i.id) ? " multi" : "") + '" data-id="' + i.id + '" role="option" draggable="true">' + thumb +
       '<div><div class="t1">' + (i.starred ? '<span class="star">' + PR.icon("star") + "</span>" : "") + "<span>" + PR.esc(title) + "</span></div>" + sub +
       '<div class="t3">' + bits.map((b) => "<span>" + PR.esc(String(b)) + "</span>").join("<span>·</span>") + tags + "</div></div>" +
-      '<div class="side-info">' + statusPill(i) + prog + L.jobLine(i) + notes + "</div></div>";
+      '<div class="side-info">' + statusPill(i) + prog + L.jobLine(i) + notes + cited + "</div></div>";
   }
 
   L.render = function () {
     PR.renderSide();
+    const tool = L.TOOLS[L.view];
+    PR.$(".main").classList.toggle("tool-view", !!tool);
+    if (tool) {
+      PR.$("#viewTitle").textContent = tool.title;
+      PR.$("#count").textContent = "";
+      tool.render(PR.$("#list"));
+      if (L.selected) L.select(null);
+      return;
+    }
     const list = filtered();
     const view = L.VIEWS.find((v) => v[0] === L.view) || L.VIEWS[0];
     PR.$("#viewTitle").textContent = L.tag ? L.tag : view[1] + (L.view === "all" ? "论文" : "");
@@ -129,19 +143,42 @@
 
   L.select = function (id) {
     L.selected = id;
+    L.multi.clear();
     PR.$(".lib").classList.toggle("has-detail", !!id);
-    PR.$$(".row").forEach((r) => r.classList.toggle("on", r.dataset.id === id));
+    PR.$$(".row").forEach((r) => { r.classList.toggle("on", r.dataset.id === id); r.classList.remove("multi"); });
     PR.renderDetail && PR.renderDetail();
+  };
+  /* 多选：⌘/Ctrl 点一篇加减，Shift 点一段，⌘A 全选当前列表；选了两篇以上，右侧换成批量操作（library/batch.js） */
+  L.setMulti = function (ids) {
+    L.multi = new Set(ids);
+    L.selected = null;
+    if (L.multi.size === 1) { L.selected = ids[0]; L.multi.clear(); }
+    PR.$(".lib").classList.toggle("has-detail", !!(L.selected || L.multi.size));
+    PR.$$(".row").forEach((r) => { r.classList.toggle("on", r.dataset.id === L.selected || L.multi.has(r.dataset.id)); r.classList.toggle("multi", L.multi.has(r.dataset.id)); });
+    PR.renderDetail && PR.renderDetail();
+  };
+  L.toggleMulti = function (id, range) {
+    const rows = PR.$$(".row").map((r) => r.dataset.id);
+    const cur = new Set(L.multi.size ? L.multi : L.selected ? [L.selected] : []);
+    const from = rows.indexOf(L.anchor || L.selected), to = rows.indexOf(id);
+    if (range && from >= 0 && to >= 0) rows.slice(Math.min(from, to), Math.max(from, to) + 1).forEach((x) => cur.add(x));
+    else if (cur.has(id)) cur.delete(id);
+    else cur.add(id);
+    if (!range) L.anchor = id;
+    L.setMulti(rows.filter((x) => cur.has(x)));
   };
 
   /* ---------- 事件 ---------- */
   PR.$("#list").addEventListener("click", (e) => {
     const r = e.target.closest(".row");
-    if (r) L.select(r.dataset.id);
+    if (!r) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey) { e.preventDefault(); return L.toggleMulti(r.dataset.id, e.shiftKey); }
+    L.anchor = r.dataset.id;
+    L.select(r.dataset.id);
   });
   /* 点列表空白处、侧栏、标题栏空白：收起右侧详情 */
   document.addEventListener("click", (e) => {
-    if (!L.selected || e.target.closest(".row, #detail, .dialog-backdrop, .menu, #toast, .topbar button, .topbar input, select")) return;
+    if (!(L.selected || L.multi.size) || e.target.closest(".row, #detail, .dialog-backdrop, .menu, #toast, .topbar button, .topbar input, select")) return;
     if (e.target.closest(".main, .side, .topbar")) L.select(null);
   });
   PR.$("#list").addEventListener("dblclick", (e) => { const r = e.target.closest(".row"); if (r) L.openReader(r.dataset.id); });
@@ -149,6 +186,7 @@
     const r = e.target.closest(".row");
     if (!r) return;
     e.preventDefault();
+    if (L.multi.has(r.dataset.id) && PR.batchMenu) return PR.batchMenu({ x: e.clientX, y: e.clientY });  // 在多选的论文上右键：批量菜单
     L.select(r.dataset.id);
     PR.rowMenu && PR.rowMenu(r.dataset.id, { x: e.clientX, y: e.clientY });
   });
@@ -164,6 +202,7 @@
     const rows = PR.$$(".row");
     const idx = rows.findIndex((r) => r.dataset.id === L.selected);
     if (e.key === "/" || (e.key === "k" && (e.ctrlKey || e.metaKey))) { e.preventDefault(); PR.$("#q").focus(); }
+    else if (e.key === "a" && (e.ctrlKey || e.metaKey) && rows.length) { e.preventDefault(); L.setMulti(rows.map((r) => r.dataset.id)); }
     else if (e.key === "ArrowDown" || e.key === "j") { e.preventDefault(); const r = rows[Math.min(rows.length - 1, idx + 1)]; if (r) { L.select(r.dataset.id); r.scrollIntoView({ block: "nearest" }); } }
     else if (e.key === "ArrowUp" || e.key === "k") { e.preventDefault(); const r = rows[Math.max(0, idx - 1)]; if (r) { L.select(r.dataset.id); r.scrollIntoView({ block: "nearest" }); } }
     else if (e.key === "Enter" && L.selected) L.openReader(L.selected);

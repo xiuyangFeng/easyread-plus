@@ -127,7 +127,10 @@
       const view = L.VIEWS.find((x) => x[0] === v);
       return view ? viewRow(view, true) : "";
     }).join("");
-    let h = pinned ? '<h3>置顶</h3><div class="sgroup">' + pinned + "</div>" : "";
+    const nNotes = L.items.reduce((n, i) => n + (i.notes || 0) + (i.highlights || 0) + (i.has_paper_note ? 1 : 0), 0);
+    const tool = (k, label, icon, n) => '<div class="srow' + (L.view === k ? " on" : "") + '" data-tool="' + k + '">' + PR.icon(icon, "sm") + '<span class="t">' + label + "</span>" + (n ? '<span class="n">' + n + "</span>" : "") + "</div>";
+    let h = '<div class="sgroup tools">' + tool("notes", "全部笔记", "note", nNotes) + tool("stats", "阅读统计", "log") + "</div>";
+    h += pinned ? '<h3>置顶</h3><div class="sgroup">' + pinned + "</div>" : "";
     h += '<h3>分类<button class="h-add" data-add title="新建分类">' + PR.icon("plus", "sm") + "</button></h3><div class=\"sgroup\" data-drop-zone>" +
       BUILTIN.filter(([k]) => k === "all" || (!L.side.hidden.includes(k) && !isPinned("v:" + k))).map((v) => viewRow(v)).join("") +
       AUTO.filter(([k, , , fn]) => count(fn) && !L.side.hidden.includes(k)).map((v) => viewRow(v)).join("") +
@@ -191,7 +194,8 @@
     if (e.target.closest("[data-add]")) { ui.adding = true; return L.render(); }
     if (e.target.closest("[data-recent]")) { ui.recentOpen = !ui.recentOpen; return L.render(); }
     if (!row) return;
-    if (row.dataset.view) { L.view = row.dataset.view; L.tag = null; L.render(); }
+    if (row.dataset.tool) { L.view = row.dataset.tool; L.tag = null; L.render(); }
+    else if (row.dataset.view) { L.view = row.dataset.view; L.tag = null; L.render(); }
     else if (row.dataset.cat) { L.tag = L.tag === row.dataset.cat ? null : row.dataset.cat; L.view = "all"; L.render(); }
     // 论文行是链接，直接打开
   });
@@ -253,8 +257,9 @@
     e.preventDefault();
     if (row.dataset.add !== undefined) { ui.adding = dragId; side.classList.remove("dragging"); return L.render(); }  // 拖到“新建分类”：建一个，把这篇放进去
     side.classList.remove("dragging"); row.classList.remove("drop");
-    const it = L.byId(dragId);
     const v = row.dataset.view;
+    if (L.multi.has(dragId) && L.multi.size > 1) return PR.batchApply(Array.from(L.multi), STATUS[v] ? { status: v } : v === "starred" ? { starred: true } : { addTag: row.dataset.cat });
+    const it = L.byId(dragId);
     if (v === "starred") { if (!it.starred) L.patch(it.id, { starred: true }); PR.toast("已加星标"); }
     else if (STATUS[v]) { if (it.status !== v) L.patch(it.id, { status: v }); PR.toast("已标为" + STATUS[v]); }
     else if (!(it.tags || []).includes(row.dataset.cat)) { L.toggleInCat(it.id, row.dataset.cat); PR.toast("已放进“" + PR.esc(row.dataset.cat) + "”"); }

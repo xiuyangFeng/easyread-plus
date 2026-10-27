@@ -14,6 +14,7 @@
       map: () => PR.toggleMap && PR.toggleMap(), skim: () => PR.toggleSkim && PR.toggleSkim(),
       chat: () => { const b = (PR.currentBlock && PR.currentBlock()) || PR.readingBlock(); PR.blockById[b] ? PR.chatAsk({ anchor: b }) : PR.toggleChat(); },
       pagePrev: () => PR.pageStep(-1), pageNext: () => PR.pageStep(1),
+      gallery: () => PR.toggleGallery && PR.toggleGallery(),
     }[id];
     if (g) { g(); return true; }
     return PR.blockAction(id);

@@ -268,7 +268,7 @@
   function tocHtml() {
     const counts = countByHeading();
     const cur = PR.currentHeading && PR.currentHeading();
-    let html = '<nav class="toc">', app = false;
+    let html = '<button class="btn sm line toc-gallery" data-x="gallery">' + PR.icon("image", "sm") + "图表一览" + (PR.keyOf("gallery") ? "（" + PR.keyOf("gallery") + "）" : "") + '</button><nav class="toc">', app = false;
     for (const h of PR.headings) {
       if (h.appendix && !app) { html += '<div class="group">附录</div>'; app = true; }
       html += '<a href="#b-' + h.id + '" data-go="' + h.id + '" class="' + (h.level === 2 ? "l2" : "l1") + (cur === h.id ? " on" : "") + '">' +
@@ -283,7 +283,8 @@
     const g = S.paper.glossary || [];
     return '<p class="hint" style="margin:0 0 10px">译法不合心意？改右边的译法，再点“替换”，会把正文里的旧译法换成新的（记为你的修改，公式不动，随时可在段落右键“恢复译者稿”）。</p>' +
       (g.length ? '<table class="terms-t">' + g.map((t, i) => "<tr><td>" + PR.esc(t.en) + '</td><td><input class="input term-in" data-i="' + i + '" value="' + PR.esc(t.zh) + '"></td><td><button class="btn sm line" data-term="' + i + '">替换</button></td></tr>').join("") + "</table>" : '<p class="hint">这篇论文还没有术语表。</p>') +
-      '<div class="term-free"><div class="hint" style="margin:14px 0 6px">任意替换</div><div style="display:flex;gap:6px"><input class="input" id="tFrom" placeholder="原译法"><input class="input" id="tTo" placeholder="新译法"><button class="btn sm line" data-term="free">替换</button></div></div>';
+      '<div class="term-free"><div class="hint" style="margin:14px 0 6px">任意替换</div><div style="display:flex;gap:6px"><input class="input" id="tFrom" placeholder="原译法"><input class="input" id="tTo" placeholder="新译法"><button class="btn sm line" data-term="free">替换</button></div></div>' +
+      (PR.abbrTableHtml ? PR.abbrTableHtml() : "");
   }
   function aboutHtml() {
     const tr = S.paper.translation || {};
@@ -294,6 +295,8 @@
       ? "你改的译文、笔记、划线写进论文目录的 reader.json（每次保存记日志，每 10 分钟留快照）。翻译方只写 paper.json 和 discussion.json，不会覆盖你的内容。"
       : "这是离线单文件版：修改只存在当前浏览器里。要把修改带回文献库，点“导出我的修改”得到一个 JSON，再运行 easyread merge。";
     return '<div class="about"><h3>译文</h3><p>' + ((tr.done_pages || []).length) + " / " + ((m.pages || []).length) + " 页。" + PR.esc(tr.note || "") + "</p>" +
+      (PR.store.mode === "server" && PR.readSeconds ? "<h3>阅读</h3><p>这篇读了 " + PR.fmtDuration(PR.readSeconds()) +
+        (((S.item || {}).read || {}).days ? "，分 " + Object.keys(S.item.read.days).length + " 天读" : "") + "（页面在前台、人在动才算）。</p>" : "") +
       "<h3>保存</h3><p>" + status + "</p>" + (PR.store.pending ? "<p>还有 " + PR.store.pending + " 条修改在等待写入。</p>" : "") +
       '<div class="row">' + (pdf ? '<a class="btn sm line" href="' + pdf + '" target="_blank" rel="noopener">打开原 PDF</a>' : "") +
       '<button class="btn sm line" data-x="pdf">导出中文 PDF…</button>' +
@@ -323,6 +326,7 @@
       return;
     }
     const x = e.target.closest("[data-x]");
+    if (x && x.dataset.x === "gallery") { PR.toggleDrawer(false); return PR.toggleGallery(true); }
     if (x) x.dataset.x === "keys" ? PR.openSettings("keys") : x.dataset.x === "pdf" ? PR.openPdfExport() : x.dataset.x === "md" ? PR.openExport() : x.dataset.x === "papermd" ? PR.downloadFullMd() : PR.download(x.dataset.x);
   });
 

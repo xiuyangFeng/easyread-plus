@@ -231,3 +231,58 @@ body.tts-on::after { content: "朗读中 · V 停止"; position: fixed; left: 20
   background: var(--ink); color: var(--bg); font-size: 13px; box-shadow: var(--shadow); white-space: nowrap; }
 #zoomtip .btn { color: var(--bg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bg) 45%, transparent); }
 #zoomtip .btn.icon { box-shadow: none; opacity: .75; }
+
+/* 缩写：只加一条很淡的点线，不打扰阅读 */
+abbr.ab { text-decoration: none; border-bottom: 1px dotted color-mix(in srgb, var(--ink-3) 45%, transparent); cursor: help; }
+abbr.ab:hover { border-bottom-color: var(--accent); }
+#popover .ab-foot, #popover .ref-foot { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--rule); font-size: 12.5px; color: var(--ink-3); }
+#popover .linkish { margin: 0; }
+.abbr-t td:first-child { white-space: nowrap; }
+.abbr-t td:nth-child(2) { font: 13px/1.5 var(--serif-en); color: var(--ink-2); }
+.abbr-t .linkish { font-weight: 600; font-size: 13px; }
+
+/* 参考文献下面的小工具：引用处、库中已有、导入 / 搜索 */
+.refs li .ref-tools { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; font: 12px/1.6 var(--ui); }
+.refs li .ref-tools button, .refs li .ref-tools a { color: var(--ink-3); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+.refs li .ref-tools button:hover { color: var(--accent); }
+.refs li .ref-tools > button { opacity: 0; transition: opacity .12s; }
+.refs li:hover .ref-tools > button, .refs li.flash .ref-tools > button, .refs li:focus-within .ref-tools > button { opacity: 1; }
+@media (hover: none) { .refs li .ref-tools > button { opacity: 1; } }
+.refs li .ref-tools a.ref-lib { color: var(--accent); }
+.refs li .ref-tools a.ref-lib svg { width: 13px; height: 13px; }
+#popover .rf-list { display: flex; flex-direction: column; gap: 2px; max-height: 50vh; overflow-y: auto; margin: 0 -8px; }
+#popover .rf-list button { display: block; text-align: left; padding: 6px 8px; border-radius: 7px; font: 13px/1.6 var(--serif-zh); color: var(--ink); }
+#popover .rf-list button:hover { background: var(--accent-soft); }
+#popover .rf-list .rf-where { display: block; font: 11.5px/1.5 var(--ui); color: var(--ink-3); }
+#popover .rf-list mark { background: var(--hl-q); color: inherit; border-radius: 2px; }
+#popover .rf-hint { margin: 0 0 6px; font-size: 12.5px; }
+#popover .rf-acts { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+a.cite.hit { background: var(--hl-q); border-radius: 3px; box-shadow: 0 0 0 2px var(--hl-q); }
+
+/* 图表一览 */
+.toc-gallery { margin: 0 0 12px; }
+#gallery { position: fixed; inset: 0; z-index: 80; display: none; flex-direction: column; background: var(--bg); }
+#gallery.open { display: flex; }
+body.gallery-open { overflow: hidden; }
+.gl-head { display: flex; align-items: center; gap: 14px; height: 56px; padding: 0 22px; border-bottom: 1px solid var(--rule); flex: none; }
+.gl-head b { font: 600 17px/1 var(--serif-zh); }
+.gl-head .hint { font-size: 12.5px; color: var(--ink-3); }
+.gl-head .grow { flex: 1; }
+.gl-grid { flex: 1; overflow-y: auto; padding: 22px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; align-content: start; }
+.gl-card { display: flex; flex-direction: column; background: var(--surface); border-radius: 12px; box-shadow: 0 0 0 1px var(--rule); padding: 10px 10px 12px; cursor: pointer; transition: box-shadow .12s, transform .12s; }
+.gl-card:hover { box-shadow: 0 0 0 1.5px var(--accent), var(--shadow); transform: translateY(-1px); }
+.gl-vis { height: 190px; display: grid; place-items: center; overflow: hidden; border-radius: 8px; background: #fff; position: relative; }
+:root[data-theme="dark"] .gl-vis { background: #e9e6df; }
+.gl-vis img { max-width: 100%; max-height: 100%; object-fit: contain; cursor: zoom-in; }
+.gl-vis.page img { object-fit: cover; object-position: top; width: 100%; height: 100%; }
+.gl-vis.page span { position: absolute; right: 6px; top: 6px; font-size: 11px; color: #fff; background: rgba(0,0,0,.45); padding: 1px 6px; border-radius: 6px; }
+.gl-vis.tbl { place-items: start center; padding: 8px; background: var(--bg); }
+.gl-tbl { border-collapse: collapse; font: 10.5px/1.35 var(--ui); color: var(--ink-2); width: 100%; }
+.gl-tbl th { border-bottom: 1px solid var(--ink-3); font-weight: 600; text-align: left; padding: 2px 4px; }
+.gl-tbl td { padding: 2px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
+.gl-cap { margin-top: 10px; font: 13px/1.6 var(--serif-zh); color: var(--ink); }
+.gl-cap b { margin-right: .5em; color: var(--accent); font-family: var(--ui); }
+.gl-q { margin-top: 4px; font-size: 12px; line-height: 1.55; color: var(--ink-2); }
+.gl-meta { margin-top: auto; padding-top: 8px; font-size: 11.5px; color: var(--ink-3); }
+body.pdf-export abbr.ab { border-bottom: 0; }
+@media print { abbr.ab { border-bottom: 0; } }

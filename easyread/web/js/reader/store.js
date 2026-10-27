@@ -109,6 +109,7 @@
   async function reloadToken() {
     try { PR.token = (await (await fetch(base() + "/state", { cache: "no-store" })).json()).token; } catch (e) { /* 下次重试 */ }
   }
+  PR.reloadToken = reloadToken;  // 本地服务重启过，令牌就换了
 
   /* ---------- 载入 ---------- */
   PR.load = async function () {

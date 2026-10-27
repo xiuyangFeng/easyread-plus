@@ -27,6 +27,83 @@
     });
   }
 
+  /* 作者-年份制引用：（Itatani et al., 2022; Wu et al., 2025）、Fuchs and Whelton (2020)、（Li 等，2021）。
+     按第一作者姓氏 + 年份在参考文献里找；找不到的原样留着，不乱链。 */
+  const fold = (s) => String(s || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  let ayRefs = [];
+  const ayCache = new Map();
+  PR.indexAuthorYear = function (refs) {
+    ayCache.clear();
+    ayRefs = (refs || []).map((r, i) => {
+      const t = fold(r.text);
+      const y = t.search(/(?:19|20)\d{2}/);
+      return { id: String(r.id), text: t, head: t.slice(0, Math.min(240, Math.max(60, y < 0 ? 160 : y))), i };
+    });
+  };
+  PR.authorYearRef = function (names, ys) {
+    const key = names + "|" + ys;
+    if (ayCache.has(key)) return ayCache.get(key);
+    const year = ys.slice(0, 4), suf = ys.slice(4);
+    const parts = fold(names).replace(/&amp;/g, "&").replace(/\bet\s+al\.?|等人?/g, " ")
+      .split(/\s*(?:,|，|、|\band\b|&|和|与)\s*/).map((x) => x.trim()).filter(Boolean);
+    const word = (w) => new RegExp("(^|[^a-z])" + reEsc(w) + "(?![a-z])");
+    let found = null;
+    if (parts[0] && parts[0].length >= 2) {
+      const yre = new RegExp("(^|\\D)" + year + "(?!\\d)");
+      const w1 = word(parts[0]);
+      let c = ayRefs.filter((r) => yre.test(r.text)).map((r) => { const m = w1.exec(r.head); return m ? { r, pos: m.index } : null; }).filter(Boolean);
+      if (parts[1]) { const w2 = word(parts[1]); const both = c.filter((x) => w2.test(x.r.head)); if (both.length) c = both; }
+      c.sort((a, b) => a.pos - b.pos || a.r.i - b.r.i);
+      if (c.length && suf) {
+        const exact = c.filter((x) => x.r.text.includes(year + suf));
+        const same = c.filter((x) => x.pos === c[0].pos);
+        found = (exact[0] || same[suf.charCodeAt(0) - 97] || c[0]).r.id;
+      } else if (c.length) found = c[0].r.id;
+    }
+    ayCache.set(key, found);
+    return found;
+  };
+  const NAME = "[A-Z\\u00C0-\\u024F][A-Za-z\\u00C0-\\u024F'’\\-]+";
+  const AY_ITEM = new RegExp("^((?:e\\.g\\.|i\\.e\\.|see|cf\\.|如|见|参见)[,，]?\\s*)?(" + NAME + "[^;；()（）]*?)[,，]?\\s*((?:19|20)\\d{2}[a-z]?)$");
+  const AY_NARR = new RegExp("(" + NAME + "(?:\\s+" + NAME + ")?(?:\\s*(?:et al\\.|等人?)|\\s+(?:and|&amp;|和|与)\\s+" + NAME + ")?)\\s*([（(])((?:19|20)\\d{2}[a-z]?)([)）])", "g");
+  function ayLink(text, names, ys) {
+    const id = PR.authorYearRef(names, ys);
+    return id && PR.refById && PR.refById[id] ? '<a class="cite" data-ref="' + PR.esc(id) + '">' + text + "</a>" : text;
+  }
+  function authorYearLinks(s) {
+    if (!ayRefs.length || !/(?:19|20)\d{2}/.test(s)) return s;
+    s = s.replace(/([（(])([^()（）<>]{6,600}?)([)）])/g, (m, open, inner, close) => {
+      if (!/(?:19|20)\d{2}/.test(inner)) return m;
+      return open + inner.split(/(\s*(?<!&[a-z]{1,6});\s*|\s*；\s*)/).map((item, i) => {
+        if (i % 2) return item;
+        const mm = item.match(AY_ITEM);
+        return mm ? (mm[1] || "") + ayLink(item.slice((mm[1] || "").length), mm[2], mm[3]) : item;
+      }).join("") + close;
+    });
+    return s.replace(AY_NARR, (m, names, open, ys, close, at, all) => {
+      if (/<a [^>]*$/.test(all.slice(Math.max(0, at - 80), at))) return m;  // 已经在链接里
+      const sp = names.match(/^(\S+\s+)(.+)$/);  // “Recently Smith et al. (2020)”：句首的词不是姓
+      if (sp && !PR.authorYearRef(names, ys) && PR.authorYearRef(sp[2], ys)) return sp[1] + ayLink(m.slice(sp[1].length), sp[2], ys);
+      return ayLink(m, names, ys);
+    });
+  }
+
+  /* 缩写：全文抽出来的“wall shear stress (WSS)”，正文里的 WSS 悬停看全称（reader/abbr.js 建表） */
+  function abbrLinks(s) {
+    const re = PR.abbrRe;
+    if (!re) return s;
+    let depth = 0;
+    return s.split(/(<[^>]+>)/).map((part) => {
+      if (part[0] === "<") {
+        if (/^<(a|code)[\s>]/i.test(part)) depth++;
+        else if (/^<\/(a|code)>/i.test(part)) depth = Math.max(0, depth - 1);
+        return part;
+      }
+      return depth ? part : part.replace(re, (m, ab) => '<abbr class="ab" data-ab="' + ab + '">' + m + "</abbr>");
+    }).join("");
+  }
+
   function xref(kind, key, label) {
     const ix = PR.xindex && PR.xindex[kind];
     if (!ix || !ix[key]) return label;
@@ -67,8 +144,8 @@
     s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
     s = s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
     s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
-    if (opts.cite !== false) s = citeLinks(s);
-    if (opts.xref !== false) s = xrefLinks(s);
+    if (opts.cite !== false) s = authorYearLinks(citeLinks(s));
+    if (opts.xref !== false) s = abbrLinks(xrefLinks(s));
     return s.replace(/\n/g, "<br>");
   }
 

@@ -181,7 +181,7 @@
   function refCard(a) {
     if (a.classList.contains("cite")) {
       const r = PR.refById[a.dataset.ref];
-      return r ? '<div class="ref"><span class="n">[' + PR.esc(r.id) + "]</span>" + PR.esc(r.text) + "</div>" : "";
+      return r ? '<div class="ref"><span class="n">[' + PR.esc(r.id) + "]</span>" + PR.esc(r.text) + "</div>" + (PR.refCardExtra ? PR.refCardExtra(String(r.id)) : "") : "";
     }
     const b = PR.blockById[PR.xindex[a.dataset.kind][a.dataset.key]];
     if (!b) return "";

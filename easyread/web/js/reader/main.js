@@ -65,6 +65,7 @@
       return;
     }
     const act = PR.keyAction(k);  // 键位可在“说明 → 快捷键”里改
+    if (body.classList.contains("gallery-open") && act !== "gallery") return;  // 图表一览盖着正文时，别的键不动正文
     if (act && PR.runAction(act)) e.preventDefault();
   });
 
